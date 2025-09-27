@@ -1,5 +1,8 @@
-import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation } from "@shared/schema";
+import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, users, vehicles, trips, locations } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -227,4 +230,164 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database storage implementation
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await db.insert(users).values([{
+      ...insertUser,
+      role: insertUser.role as "admin" | "driver"
+    }]).returning();
+    return result[0];
+  }
+
+  // Vehicle operations
+  async getVehicles(): Promise<Vehicle[]> {
+    return await db.select().from(vehicles);
+  }
+
+  async getVehicle(id: string): Promise<Vehicle | undefined> {
+    const result = await db.select().from(vehicles).where(eq(vehicles.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
+    const result = await db.insert(vehicles).values([{
+      ...insertVehicle,
+      status: insertVehicle.status as "available" | "in_use" | "maintenance"
+    }]).returning();
+    return result[0];
+  }
+
+  async updateVehicle(id: string, updates: Partial<InsertVehicle>): Promise<Vehicle | undefined> {
+    const result = await db.update(vehicles)
+      .set(updates as any)
+      .where(eq(vehicles.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteVehicle(id: string): Promise<boolean> {
+    const result = await db.delete(vehicles).where(eq(vehicles.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Trip operations
+  async getTrips(): Promise<Trip[]> {
+    return await db.select().from(trips);
+  }
+
+  async getTripsByDriver(driverId: string): Promise<Trip[]> {
+    return await db.select().from(trips).where(eq(trips.driverId, driverId));
+  }
+
+  async getTrip(id: string): Promise<Trip | undefined> {
+    const result = await db.select().from(trips).where(eq(trips.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createTrip(insertTrip: InsertTrip): Promise<Trip> {
+    const result = await db.insert(trips).values([{
+      ...insertTrip,
+      status: insertTrip.status as "assigned" | "in_progress" | "completed" | "cancelled"
+    }]).returning();
+    return result[0];
+  }
+
+  async updateTrip(id: string, updates: Partial<InsertTrip & { startTime?: Date; endTime?: Date }>): Promise<Trip | undefined> {
+    const result = await db.update(trips)
+      .set(updates as any)
+      .where(eq(trips.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteTrip(id: string): Promise<boolean> {
+    const result = await db.delete(trips).where(eq(trips.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Location operations
+  async getLocationsByTrip(tripId: string): Promise<Location[]> {
+    return await db.select().from(locations).where(eq(locations.tripId, tripId));
+  }
+
+  async createLocation(insertLocation: InsertLocation): Promise<Location> {
+    const result = await db.insert(locations).values([insertLocation]).returning();
+    return result[0];
+  }
+}
+
+// Initialize sample data for demonstration
+async function initSampleData() {
+  try {
+    // Check if data already exists
+    const existingUsers = await db.select().from(users).limit(1);
+    if (existingUsers.length > 0) {
+      console.log("Sample data already exists, skipping initialization");
+      return;
+    }
+
+    console.log("Initializing sample data...");
+
+    // Create sample admin user (password: admin123)
+    const adminUser = await db.insert(users).values([{
+      name: "John Admin",
+      email: "admin@srlogistics.com",
+      password: "$2b$10$ubTkp.g4BDWCejM.hf.63.zkn1Ap73pRxNO2LQvMpO6Yy9TgC0p9a", // bcrypt hash of "admin123"
+      role: "admin" as const
+    }]).returning();
+    
+    // Create sample driver user (password: driver123)
+    const driverUser = await db.insert(users).values([{
+      name: "Mike Driver",
+      email: "driver@srlogistics.com",
+      password: "$2b$10$gAAttSPm6MVsQkKdlFqNUe6hRVjwuU3mqM2ens9UkyFKC7R1w3YzC", // bcrypt hash of "driver123"
+      role: "driver" as const
+    }]).returning();
+    
+    // Create sample vehicles
+    const vehicle1 = await db.insert(vehicles).values([{
+      numberPlate: "TRK-001",
+      type: "Truck",
+      status: "available" as const
+    }]).returning();
+    
+    const vehicle2 = await db.insert(vehicles).values([{
+      numberPlate: "VAN-205",
+      type: "Van",
+      status: "in_use" as const
+    }]).returning();
+    
+    // Create sample trip
+    await db.insert(trips).values([{
+      driverId: driverUser[0].id,
+      vehicleId: vehicle2[0].id,
+      route: "Warehouse A → Customer Site",
+      status: "assigned" as const
+    }]);
+
+    console.log("Sample data initialized successfully");
+  } catch (error) {
+    console.error("Error initializing sample data:", error);
+  }
+}
+
+// Use database storage and initialize sample data
+export const storage = new DatabaseStorage();
+
+// Initialize sample data when the module loads
+initSampleData().catch(console.error);
