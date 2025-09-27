@@ -1,0 +1,112 @@
+🚀 SR Logistics Fleet Management App – One Big Prompt
+
+Build a Fleet Management Web App called SR Logistics with the following requirements:
+
+🔑 Core Features
+
+Two Login Roles
+
+Admin:
+
+Secure login via Supabase Auth.
+
+Add, edit, and delete vehicles.
+
+Manage drivers (CRUD).
+
+Assign trips to drivers.
+
+Track real-time location of drivers on trips.
+
+View completed trips with filters (driver-wise, date-wise, month-wise).
+
+Driver:
+
+Secure login via Supabase Auth.
+
+View assigned trips.
+
+Start trip → updates trip status and streams live location.
+
+View trip history month-wise.
+
+Authentication & Database
+
+Use Supabase for:
+
+Authentication & role-based access (admin, driver).
+
+Database for drivers, vehicles, trips, and locations.
+
+Realtime sync for trip updates and live location tracking.
+
+UI / UX Requirements
+
+Modern, sleek, stylized design.
+
+Use TailwindCSS + ShadCN UI + Framer Motion + Lucide Icons.
+
+Smooth animations and transitions.
+
+Toast-style notifications for success/error states.
+
+Responsive layout for desktop and mobile.
+
+Admin Dashboard: cards, charts, tables, and live maps.
+
+Driver Dashboard: simple trip cards with status.
+
+Realtime Features
+
+Admin dashboard updates live when a driver starts/ends a trip or location updates.
+
+Driver app syncs assigned trips and trip status changes in real-time.
+
+📐 Tech Stack
+
+Frontend: Next.js (App Router), TailwindCSS, ShadCN UI, Framer Motion, Lucide Icons
+
+Backend & Database: Supabase (Auth, Database, Realtime)
+
+Notifications: Toasts
+
+📱 Pages Required
+
+Auth Pages: Login (role-based redirect → admin → dashboard, driver → trips).
+
+Admin Pages:
+
+Dashboard (live map, trip stats).
+
+Manage Drivers (CRUD).
+
+Manage Vehicles (CRUD).
+
+Trips (assign + track + history).
+
+Driver Pages:
+
+My Trips (active + history).
+
+Start Trip (updates location + status).
+
+🗄 Database Schema (Supabase)
+
+users: id, name, email, password, role (admin or driver)
+
+vehicles: id, number_plate, type, status
+
+trips: id, driver_id, vehicle_id, start_time, end_time, status, route, created_at
+
+locations: id, trip_id, latitude, longitude, timestamp
+
+⚡ Deliverables:
+Generate a complete responsive fleet management web app with:
+
+Supabase-powered auth, database, and realtime features.
+
+Admin and Driver roles with separate dashboards.
+
+Live location tracking on admin dashboard.
+
+Modern sleek UI with responsive design, icons, animations, and toast notifications.
