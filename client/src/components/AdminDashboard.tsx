@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Car, 
   Users, 
@@ -13,44 +14,15 @@ import {
   Filter
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { Trip, Vehicle, User } from "@shared/schema";
 
-//todo: remove mock functionality
-const mockStats = {
-  totalVehicles: 24,
-  activeDrivers: 18,
-  activeTrips: 12,
-  completedToday: 8
-};
-
-const mockActiveTrips = [
-  {
-    id: "1",
-    driver: "John Smith",
-    vehicle: "TRK-001",
-    route: "Warehouse A → Customer Site",
-    status: "in_progress" as const,
-    startTime: "09:30 AM",
-    progress: 65
-  },
-  {
-    id: "2", 
-    driver: "Sarah Johnson",
-    vehicle: "VAN-205",
-    route: "Distribution Center → Mall Plaza",
-    status: "in_progress" as const,
-    startTime: "10:15 AM",
-    progress: 30
-  },
-  {
-    id: "3",
-    driver: "Mike Wilson",
-    vehicle: "TRK-108",
-    route: "Factory → Port Terminal",
-    status: "in_progress" as const,
-    startTime: "08:45 AM",
-    progress: 85
-  }
-];
+// Extended trip interface with driver and vehicle details
+interface TripWithDetails extends Trip {
+  driverName?: string;
+  vehiclePlate?: string;
+  progress?: number;
+}
 
 interface AdminDashboardProps {
   onManageDrivers: () => void;
@@ -64,6 +36,59 @@ export default function AdminDashboard({
   onManageTrips 
 }: AdminDashboardProps) {
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
+
+  // Fetch real data
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<Vehicle[]>({
+    queryKey: ['/api/vehicles'],
+    refetchInterval: 30000 // Refresh every 30 seconds
+  });
+
+  const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ['/api/users'],
+    refetchInterval: 30000
+  });
+
+  const { data: trips = [], isLoading: tripsLoading } = useQuery<Trip[]>({
+    queryKey: ['/api/trips'],
+    refetchInterval: 5000 // Refresh every 5 seconds for real-time updates
+  });
+
+  // Calculate real stats
+  const stats = {
+    totalVehicles: vehicles.length,
+    activeDrivers: users.filter(user => user.role === 'driver').length,
+    activeTrips: trips.filter(trip => trip.status === 'in_progress').length,
+    completedToday: trips.filter(trip => {
+      if (trip.status !== 'completed' || !trip.endTime) return false;
+      const today = new Date().toDateString();
+      return new Date(trip.endTime).toDateString() === today;
+    }).length
+  };
+
+  // Get active trips with details
+  const activeTrips: TripWithDetails[] = trips
+    .filter(trip => trip.status === 'in_progress' || trip.status === 'assigned')
+    .map(trip => {
+      const driver = users.find(user => user.id === trip.driverId);
+      const vehicle = vehicles.find(v => v.id === trip.vehicleId);
+      
+      // Calculate progress based on time elapsed
+      let progress = 0;
+      if (trip.startTime) {
+        const startTime = new Date(trip.startTime).getTime();
+        const now = Date.now();
+        const elapsed = now - startTime;
+        // Assume 4 hours for a typical trip, calculate progress
+        progress = Math.min(Math.round((elapsed / (4 * 60 * 60 * 1000)) * 100), 95);
+      }
+      
+      return {
+        ...trip,
+        driverName: driver?.name || 'Unknown Driver',
+        vehiclePlate: vehicle?.numberPlate || 'Unknown Vehicle',
+        progress: trip.status === 'assigned' ? 0 : progress
+      };
+    });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -103,10 +128,14 @@ export default function AdminDashboard({
               <Car className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.totalVehicles}</div>
+              {vehiclesLoading ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.totalVehicles}</div>
+              )}
               <div className="flex items-center text-xs text-green-600 mt-1">
                 <TrendingUp className="w-3 h-3 mr-1" />
-                +2 this month
+                {vehicles.filter(v => v.status === 'available').length} available
               </div>
             </CardContent>
           </Card>
@@ -119,10 +148,14 @@ export default function AdminDashboard({
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.activeDrivers}</div>
+              {usersLoading ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.activeDrivers}</div>
+              )}
               <div className="flex items-center text-xs text-blue-600 mt-1">
                 <Activity className="w-3 h-3 mr-1" />
-                Currently online
+                Total drivers
               </div>
             </CardContent>
           </Card>
@@ -135,7 +168,11 @@ export default function AdminDashboard({
               <MapPin className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.activeTrips}</div>
+              {tripsLoading ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.activeTrips}</div>
+              )}
               <div className="flex items-center text-xs text-orange-600 mt-1">
                 <Clock className="w-3 h-3 mr-1" />
                 In progress
@@ -151,10 +188,14 @@ export default function AdminDashboard({
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.completedToday}</div>
+              {tripsLoading ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.completedToday}</div>
+              )}
               <div className="flex items-center text-xs text-green-600 mt-1">
                 <TrendingUp className="w-3 h-3 mr-1" />
-                +3 from yesterday
+                Today
               </div>
             </CardContent>
           </Card>
@@ -175,38 +216,60 @@ export default function AdminDashboard({
               <CardDescription>Real-time trip monitoring</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockActiveTrips.map((trip, index) => (
-                <motion.div
-                  key={trip.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 + index * 0.1 }}
-                  className={`p-4 rounded-lg border hover-elevate cursor-pointer transition-all ${
-                    selectedTrip === trip.id ? 'ring-2 ring-primary border-primary' : 'border-border'
-                  }`}
-                  onClick={() => setSelectedTrip(selectedTrip === trip.id ? null : trip.id)}
-                  data-testid={`trip-${trip.id}`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${getStatusColor(trip.status)}`} />
-                      <span className="font-medium">{trip.driver}</span>
+              {tripsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-4 rounded-lg border">
+                      <Skeleton className="h-4 w-3/4 mb-2" />
+                      <Skeleton className="h-3 w-1/2 mb-2" />
+                      <Skeleton className="h-2 w-full" />
                     </div>
-                    <Badge variant="secondary">{trip.vehicle}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">{trip.route}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Started: {trip.startTime}</span>
-                    <span className="text-xs font-medium">{trip.progress}% complete</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-1.5 mt-2">
-                    <div 
-                      className="bg-primary h-1.5 rounded-full transition-all duration-300" 
-                      style={{ width: `${trip.progress}%` }}
-                    />
-                  </div>
-                </motion.div>
-              ))}
+                  ))}
+                </div>
+              ) : activeTrips.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <Clock className="w-8 h-8 mx-auto mb-2" />
+                  <p>No active trips</p>
+                </div>
+              ) : (
+                activeTrips.map((trip, index) => (
+                  <motion.div
+                    key={trip.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 + index * 0.1 }}
+                    className={`p-4 rounded-lg border hover-elevate cursor-pointer transition-all ${
+                      selectedTrip === trip.id ? 'ring-2 ring-primary border-primary' : 'border-border'
+                    }`}
+                    onClick={() => setSelectedTrip(selectedTrip === trip.id ? null : trip.id)}
+                    data-testid={`trip-${trip.id}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${getStatusColor(trip.status)}`} />
+                        <span className="font-medium">{trip.driverName}</span>
+                      </div>
+                      <Badge variant="secondary">{trip.vehiclePlate}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">{trip.route}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        {trip.startTime 
+                          ? `Started: ${new Date(trip.startTime).toLocaleTimeString()}`
+                          : `Status: ${trip.status}`
+                        }
+                      </span>
+                      <span className="text-xs font-medium">{trip.progress || 0}% complete</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                      <div 
+                        className="bg-primary h-1.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${trip.progress || 0}%` }}
+                      />
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </CardContent>
           </Card>
         </motion.div>
