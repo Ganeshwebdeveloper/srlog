@@ -16,6 +16,7 @@ import {
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Trip, Vehicle, User } from "@shared/schema";
+import LiveMap from "./LiveMap";
 
 // Extended trip interface with driver and vehicle details
 interface TripWithDetails extends Trip {
@@ -274,7 +275,7 @@ export default function AdminDashboard({
           </Card>
         </motion.div>
 
-        {/* Live Map Placeholder */}
+        {/* Live Map */}
         <motion.div 
           initial={{ opacity: 0, x: 20 }} 
           animate={{ opacity: 1, x: 0 }} 
@@ -286,28 +287,11 @@ export default function AdminDashboard({
               <CardDescription>Real-time vehicle locations</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="aspect-square bg-muted rounded-lg flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-4 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg" />
-                
-                {/* Mock map pins */}
-                <div className="absolute top-8 left-8">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full shadow-lg animate-pulse" />
-                  <div className="text-xs font-medium mt-1">TRK-001</div>
-                </div>
-                <div className="absolute top-16 right-12">
-                  <div className="w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse" />
-                  <div className="text-xs font-medium mt-1">VAN-205</div>
-                </div>
-                <div className="absolute bottom-12 left-16">
-                  <div className="w-3 h-3 bg-orange-500 rounded-full shadow-lg animate-pulse" />
-                  <div className="text-xs font-medium mt-1">TRK-108</div>
-                </div>
-                
-                <div className="text-center text-muted-foreground">
-                  <MapPin className="w-8 h-8 mx-auto mb-2" />
-                  <p className="text-sm">Interactive map integration</p>
-                  <p className="text-xs">Real-time vehicle tracking</p>
-                </div>
+              <div className="aspect-square rounded-lg overflow-hidden">
+                <LiveMap 
+                  selectedTripId={selectedTrip} 
+                  onTripSelect={setSelectedTrip}
+                />
               </div>
             </CardContent>
           </Card>

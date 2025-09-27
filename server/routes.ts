@@ -295,6 +295,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Location tracking routes
+  app.get("/api/locations", async (req, res) => {
+    try {
+      // Get all locations from all trips for map display
+      const allTrips = await storage.getTrips();
+      const allLocations = [];
+      
+      for (const trip of allTrips) {
+        const tripLocations = await storage.getLocationsByTrip(trip.id);
+        allLocations.push(...tripLocations);
+      }
+      
+      res.json(allLocations);
+    } catch (error: any) {
+      console.error("Get all locations error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/trips/:tripId/locations", async (req, res) => {
     try {
       const locations = await storage.getLocationsByTrip(req.params.tripId);
