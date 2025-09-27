@@ -11,6 +11,9 @@ import { motion } from "framer-motion";
 import LoginForm from "./components/LoginForm";
 import AdminDashboard from "./components/AdminDashboard";
 import DriverPortal from "./components/DriverPortal";
+import VehicleManagement from "./components/VehicleManagement";
+import DriverManagement from "./components/DriverManagement";
+import TripManagement from "./components/TripManagement";
 import AppSidebar from "./components/AppSidebar";
 import ThemeToggle from "./components/ThemeToggle";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -49,15 +52,15 @@ function Router() {
   };
 
   const handleManageDrivers = () => {
-    console.log("Navigate to driver management");
+    setLocation("/drivers");
   };
 
   const handleManageVehicles = () => {
-    console.log("Navigate to vehicle management");
+    setLocation("/vehicles");
   };
 
   const handleManageTrips = () => {
-    console.log("Navigate to trip management");
+    setLocation("/trips");
   };
 
   // If not logged in, show login
@@ -123,24 +126,9 @@ function Router() {
                       onManageTrips={handleManageTrips}
                     />
                   } />
-                  <Route path="/vehicles" component={() => 
-                    <div className="p-6">
-                      <h1 className="text-2xl font-bold mb-4">Vehicle Management</h1>
-                      <p className="text-muted-foreground">Vehicle CRUD operations will be implemented here.</p>
-                    </div>
-                  } />
-                  <Route path="/drivers" component={() => 
-                    <div className="p-6">
-                      <h1 className="text-2xl font-bold mb-4">Driver Management</h1>
-                      <p className="text-muted-foreground">Driver CRUD operations will be implemented here.</p>
-                    </div>
-                  } />
-                  <Route path="/trips" component={() => 
-                    <div className="p-6">
-                      <h1 className="text-2xl font-bold mb-4">Trip Management</h1>
-                      <p className="text-muted-foreground">Trip assignment and tracking will be implemented here.</p>
-                    </div>
-                  } />
+                  <Route path="/vehicles" component={() => <VehicleManagement />} />
+                  <Route path="/drivers" component={() => <DriverManagement />} />
+                  <Route path="/trips" component={() => <TripManagement />} />
                   <Route path="/map" component={() => 
                     <div className="p-6">
                       <h1 className="text-2xl font-bold mb-4">Live Fleet Map</h1>
