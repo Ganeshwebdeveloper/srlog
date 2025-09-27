@@ -1,8 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
+
+// WebSocket clients map to store active connections
+const wsClients = new Map<string, any>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -342,6 +346,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Set up WebSocket server on a separate port to avoid conflicts with Vite's WebSocket
+  const wsPort = 3001;
+  const wss = new WebSocketServer({ port: wsPort });
+  
+  console.log(`WebSocket server running on port ${wsPort}`);
+  
+  wss.on('connection', (ws, request) => {
+    const clientId = `client_${Date.now()}_${Math.random()}`;
+    wsClients.set(clientId, ws);
+    
+    console.log(`WebSocket client connected: ${clientId}`);
+    
+    // Send welcome message
+    ws.send(JSON.stringify({
+      type: 'connected',
+      message: 'Connected to SR Logistics location tracking'
+    }));
+    
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log(`Message from ${clientId}:`, data);
+        
+        // Handle different message types
+        if (data.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }));
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    });
+    
+    ws.on('close', () => {
+      console.log(`WebSocket client disconnected: ${clientId}`);
+      wsClients.delete(clientId);
+    });
+    
+    ws.on('error', (error) => {
+      console.error(`WebSocket error for ${clientId}:`, error);
+      wsClients.delete(clientId);
+    });
+  });
 
   return httpServer;
 }

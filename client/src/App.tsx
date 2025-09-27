@@ -14,6 +14,7 @@ import DriverPortal from "./components/DriverPortal";
 import VehicleManagement from "./components/VehicleManagement";
 import DriverManagement from "./components/DriverManagement";
 import TripManagement from "./components/TripManagement";
+import LiveMap from "./components/LiveMap";
 import AppSidebar from "./components/AppSidebar";
 import ThemeToggle from "./components/ThemeToggle";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -130,9 +131,10 @@ function Router() {
                   <Route path="/drivers" component={() => <DriverManagement />} />
                   <Route path="/trips" component={() => <TripManagement />} />
                   <Route path="/map" component={() => 
-                    <div className="p-6">
-                      <h1 className="text-2xl font-bold mb-4">Live Fleet Map</h1>
-                      <p className="text-muted-foreground">Real-time map with vehicle locations will be implemented here.</p>
+                    <div className="p-6 h-full">
+                      <div className="h-full">
+                        <LiveMap />
+                      </div>
                     </div>
                   } />
                   <Route path="/analytics" component={() => 
@@ -155,14 +157,14 @@ function Router() {
                 </>
               ) : (
                 <>
-                  <Route path="/trips" component={() => <DriverPortal driverName={user.name} />} />
+                  <Route path="/trips" component={() => <DriverPortal driverName={user.name} driverId={user.id} />} />
                   <Route path="/history" component={() => 
                     <div className="p-6">
                       <h1 className="text-2xl font-bold mb-4">Trip History</h1>
                       <p className="text-muted-foreground">Detailed trip history and statistics will be implemented here.</p>
                     </div>
                   } />
-                  <Route component={() => <DriverPortal driverName={user.name} />} />
+                  <Route component={() => <DriverPortal driverName={user.name} driverId={user.id} />} />
                 </>
               )}
             </Switch>

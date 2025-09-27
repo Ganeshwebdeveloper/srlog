@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Trip, Vehicle, User, Location } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Car, Navigation, Clock } from "lucide-react";
+import { Car, Navigation, Clock, Wifi, WifiOff } from "lucide-react";
 import { motion } from "framer-motion";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import "leaflet/dist/leaflet.css";
 
 // Fix leaflet default markers
@@ -35,6 +36,10 @@ interface LiveMapProps {
 
 export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]); // Default to London
+  const [realtimeLocations, setRealtimeLocations] = useState<Location[]>([]);
+
+  // WebSocket connection for real-time updates
+  const { isConnected, lastMessage } = useWebSocket();
 
   // Fetch trips, vehicles, users, and locations
   const { data: trips = [] } = useQuery<Trip[]>({
@@ -50,11 +55,26 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
     queryKey: ['/api/users']
   });
 
-  // Fetch locations for active trips
-  const { data: allLocations = [] } = useQuery<Location[]>({
+  // Fetch initial locations for active trips
+  const { data: initialLocations = [] } = useQuery<Location[]>({
     queryKey: ['/api/locations'],
-    refetchInterval: 3000 // More frequent updates for location tracking
+    refetchInterval: 10000 // Less frequent polling since we have WebSocket updates
   });
+
+  // Handle real-time location updates via WebSocket
+  useEffect(() => {
+    if (lastMessage?.type === 'location_update' && lastMessage.data) {
+      const newLocation = lastMessage.data as Location;
+      setRealtimeLocations(prev => {
+        // Replace location for the same trip or add new one
+        const filtered = prev.filter(loc => loc.tripId !== newLocation.tripId);
+        return [...filtered, newLocation];
+      });
+    }
+  }, [lastMessage]);
+
+  // Combine initial locations with real-time updates
+  const allLocations = [...initialLocations, ...realtimeLocations];
 
   // Create trip markers with details
   const tripsWithDetails: TripWithDetails[] = trips
