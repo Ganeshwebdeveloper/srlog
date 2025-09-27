@@ -97,6 +97,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/users/:id", async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.partial().parse(req.body);
+      let updateData: any = { ...validatedData };
+      
+      // Hash password if provided
+      if (validatedData.password) {
+        updateData.password = await bcrypt.hash(validatedData.password, 10);
+      }
+      
+      const updatedUser = await storage.updateUser(req.params.id, updateData);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input data", errors: error.errors });
+      }
+      console.error("Update user error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteUser(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({ message: "User deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Vehicle routes
   app.get("/api/vehicles", async (req, res) => {
     try {
