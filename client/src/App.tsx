@@ -17,26 +17,22 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import NotFound from "@/pages/not-found";
 
 type User = {
+  id: string;
+  name: string;
   email: string;
   role: "admin" | "driver";
-  name: string;
+  createdAt: Date;
 };
 
 function Router() {
   const [user, setUser] = useState<User | null>(null);
   const [location, setLocation] = useLocation();
 
-  const handleLogin = (email: string, password: string, role: "admin" | "driver") => {
-    // Simulate login - in real app this would make API call
-    const mockUser: User = {
-      email,
-      role,
-      name: role === "admin" ? "John Admin" : "Mike Driver"
-    };
-    setUser(mockUser);
+  const handleLogin = (user: User) => {
+    setUser(user);
     
     // Redirect based on role
-    if (role === "admin") {
+    if (user.role === "admin") {
       setLocation("/dashboard");
     } else {
       setLocation("/trips");

@@ -38,6 +38,68 @@ export class MemStorage implements IStorage {
     this.vehicles = new Map();
     this.trips = new Map();
     this.locations = new Map();
+    
+    // Initialize with sample data for testing
+    this.initSampleData();
+  }
+
+  private async initSampleData() {
+    // Create sample admin user (password: admin123)
+    const adminUser: User = {
+      id: randomUUID(),
+      name: "John Admin",
+      email: "admin@srlogistics.com",
+      password: "$2b$10$ubTkp.g4BDWCejM.hf.63.zkn1Ap73pRxNO2LQvMpO6Yy9TgC0p9a", // bcrypt hash of "admin123"
+      role: "admin",
+      createdAt: new Date()
+    };
+    
+    // Create sample driver user (password: driver123)
+    const driverUser: User = {
+      id: randomUUID(),
+      name: "Mike Driver",
+      email: "driver@srlogistics.com",
+      password: "$2b$10$gAAttSPm6MVsQkKdlFqNUe6hRVjwuU3mqM2ens9UkyFKC7R1w3YzC", // bcrypt hash of "driver123"
+      role: "driver",
+      createdAt: new Date()
+    };
+    
+    this.users.set(adminUser.id, adminUser);
+    this.users.set(driverUser.id, driverUser);
+    
+    // Create sample vehicles
+    const vehicle1: Vehicle = {
+      id: randomUUID(),
+      numberPlate: "TRK-001",
+      type: "Truck",
+      status: "available",
+      createdAt: new Date()
+    };
+    
+    const vehicle2: Vehicle = {
+      id: randomUUID(),
+      numberPlate: "VAN-205",
+      type: "Van",
+      status: "in_use",
+      createdAt: new Date()
+    };
+    
+    this.vehicles.set(vehicle1.id, vehicle1);
+    this.vehicles.set(vehicle2.id, vehicle2);
+    
+    // Create sample trip
+    const trip1: Trip = {
+      id: randomUUID(),
+      driverId: driverUser.id,
+      vehicleId: vehicle2.id,
+      route: "Warehouse A → Customer Site",
+      status: "assigned",
+      startTime: null,
+      endTime: null,
+      createdAt: new Date()
+    };
+    
+    this.trips.set(trip1.id, trip1);
   }
 
   async getUser(id: string): Promise<User | undefined> {

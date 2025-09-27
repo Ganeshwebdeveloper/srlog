@@ -3,29 +3,61 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Truck, LogIn } from "lucide-react";
+import { Truck, LogIn, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "driver";
+  createdAt: Date;
+}
 
 interface LoginFormProps {
-  onLogin: (email: string, password: string, role: "admin" | "driver") => void;
+  onLogin: (user: User) => void;
 }
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState<"admin" | "driver">("admin");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate login process
-    setTimeout(() => {
-      console.log(`Login attempted: ${email} as ${selectedRole}`);
-      onLogin(email, password, selectedRole);
+    setError("");
+
+    try {
+      const response = await apiRequest("POST", "/api/auth/login", {
+        email,
+        password
+      });
+
+      const data = await response.json();
+      
+      if (data.user) {
+        toast({
+          title: "Login successful",
+          description: `Welcome back, ${data.user.name}!`
+        });
+        onLogin(data.user);
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || "Login failed. Please try again.";
+      setError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: errorMessage
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -84,31 +116,16 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={selectedRole === "admin" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedRole("admin")}
-                    className="flex-1"
-                    data-testid="button-role-admin"
-                  >
-                    Admin
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={selectedRole === "driver" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedRole("driver")}
-                    className="flex-1"
-                    data-testid="button-role-driver"
-                  >
-                    Driver
-                  </Button>
-                </div>
-              </div>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{error}</span>
+                </motion.div>
+              )}
 
               <Button
                 type="submit"
