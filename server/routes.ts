@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -347,11 +347,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Set up WebSocket server on a separate port to avoid conflicts with Vite's WebSocket
-  const wsPort = 3001;
-  const wss = new WebSocketServer({ port: wsPort });
+  // Set up WebSocket server on the same HTTP server with path
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/ws'
+  });
   
-  console.log(`WebSocket server running on port ${wsPort}`);
+  console.log(`WebSocket server running on /ws path`);
   
   wss.on('connection', (ws, request) => {
     const clientId = `client_${Date.now()}_${Math.random()}`;
@@ -365,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       message: 'Connected to SR Logistics location tracking'
     }));
     
-    ws.on('message', (message) => {
+    ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
         console.log(`Message from ${clientId}:`, data);
@@ -373,9 +375,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle different message types
         if (data.type === 'ping') {
           ws.send(JSON.stringify({ type: 'pong' }));
+        } else if (data.type === 'location_update' && data.payload) {
+          // Handle location updates from drivers
+          const { tripId, latitude, longitude, driverId } = data.payload;
+          
+          // Basic authentication - verify the driver is assigned to this trip
+          const trip = await storage.getTrip(tripId);
+          if (!trip) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Trip not found'
+            }));
+            return;
+          }
+          
+          if (trip.driverId !== driverId) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Unauthorized: You can only update your own trips'
+            }));
+            return;
+          }
+          
+          try {
+            // Validate and save location to database
+            const validatedLocation = insertLocationSchema.parse({
+              tripId,
+              latitude: latitude.toString(),
+              longitude: longitude.toString()
+            });
+            
+            const newLocation = await storage.createLocation(validatedLocation);
+            
+            // Broadcast location update to all connected clients
+            const locationUpdate = {
+              type: 'location_update',
+              data: newLocation
+            };
+            
+            wsClients.forEach((client, id) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(locationUpdate));
+              } else {
+                // Remove disconnected clients
+                wsClients.delete(id);
+              }
+            });
+            
+            console.log(`Location update broadcasted for trip ${tripId}`);
+          } catch (locationError) {
+            console.error('Error saving location:', locationError);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Failed to save location update'
+            }));
+          }
+        } else if (data.type === 'trip_status_update' && data.payload) {
+          // Handle trip status updates
+          const { tripId, status, driverId } = data.payload;
+          
+          // Basic authentication - verify the driver is assigned to this trip
+          const trip = await storage.getTrip(tripId);
+          if (!trip) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Trip not found'
+            }));
+            return;
+          }
+          
+          if (trip.driverId !== driverId) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Unauthorized: You can only update your own trips'
+            }));
+            return;
+          }
+          
+          try {
+            const updatedTrip = await storage.updateTrip(tripId, { 
+              status: status as "assigned" | "in_progress" | "completed" | "cancelled",
+              startTime: status === 'in_progress' ? new Date() : undefined,
+              endTime: status === 'completed' ? new Date() : undefined
+            });
+            
+            if (updatedTrip) {
+              // Broadcast trip status update to all clients
+              const statusUpdate = {
+                type: 'trip_status_update',
+                data: updatedTrip
+              };
+              
+              wsClients.forEach((client, id) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify(statusUpdate));
+                } else {
+                  wsClients.delete(id);
+                }
+              });
+              
+              console.log(`Trip status update broadcasted for trip ${tripId}: ${status}`);
+            }
+          } catch (tripError) {
+            console.error('Error updating trip status:', tripError);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Failed to update trip status'
+            }));
+          }
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Invalid message format'
+        }));
       }
     });
     

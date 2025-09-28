@@ -18,7 +18,10 @@ export function useWebSocket(url?: string): UseWebSocketReturn {
   const ws = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const wsUrl = url || `ws://${window.location.hostname}:3001`;
+  // Use current location but fallback to localhost for development
+  const host = window.location.host || 'localhost:5000';
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = url || `${protocol}//${host}/ws`;
 
   const connect = () => {
     try {

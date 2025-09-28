@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import LoginForm from "./components/LoginForm";
 import AdminDashboard from "./components/AdminDashboard";
 import DriverPortal from "./components/DriverPortal";
+import DriverDashboard from "./components/DriverDashboard";
 import VehicleManagement from "./components/VehicleManagement";
 import DriverManagement from "./components/DriverManagement";
 import TripManagement from "./components/TripManagement";
@@ -157,6 +158,7 @@ function Router() {
                 </>
               ) : (
                 <>
+                  <Route path="/dashboard" component={() => <DriverDashboard driverId={user.id} />} />
                   <Route path="/trips" component={() => <DriverPortal driverName={user.name} driverId={user.id} />} />
                   <Route path="/history" component={() => 
                     <div className="p-6">
@@ -164,7 +166,7 @@ function Router() {
                       <p className="text-muted-foreground">Detailed trip history and statistics will be implemented here.</p>
                     </div>
                   } />
-                  <Route component={() => <DriverPortal driverName={user.name} driverId={user.id} />} />
+                  <Route component={() => <DriverDashboard driverId={user.id} />} />
                 </>
               )}
             </Switch>

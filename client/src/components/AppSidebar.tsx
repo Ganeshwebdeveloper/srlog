@@ -75,6 +75,11 @@ export default function AppSidebar({
 
   const driverMenuItems = [
     {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: Home,
+    },
+    {
       title: "My Trips",
       url: "/trips",
       icon: Route,

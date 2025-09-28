@@ -37,9 +37,10 @@ interface LiveMapProps {
 export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) {
   const [center, setCenter] = useState<LatLngTuple>([51.505, -0.09]); // Default to London
   const [realtimeLocations, setRealtimeLocations] = useState<Location[]>([]);
+  const [realtimeTrips, setRealtimeTrips] = useState<Trip[]>([]);
 
   // WebSocket connection for real-time updates
-  const { isConnected, lastMessage } = useWebSocket();
+  const { isConnected, lastMessage, sendMessage } = useWebSocket();
 
   // Fetch trips, vehicles, users, and locations
   const { data: trips = [] } = useQuery<Trip[]>({
@@ -61,14 +62,38 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
     refetchInterval: 10000 // Less frequent polling since we have WebSocket updates
   });
 
-  // Handle real-time location updates via WebSocket
+  // Handle real-time updates via WebSocket
   useEffect(() => {
     if (lastMessage?.type === 'location_update' && lastMessage.data) {
       const newLocation = lastMessage.data as Location;
       setRealtimeLocations(prev => {
-        // Replace location for the same trip or add new one
-        const filtered = prev.filter(loc => loc.tripId !== newLocation.tripId);
-        return [...filtered, newLocation];
+        // Accumulate location points for continuous tracking
+        const filtered = prev.filter(loc => 
+          loc.tripId !== newLocation.tripId || 
+          (loc.timestamp && newLocation.timestamp && 
+           new Date(loc.timestamp).getTime() !== new Date(newLocation.timestamp).getTime())
+        );
+        
+        // Keep only last 50 points per trip to avoid memory issues
+        const tripLocations = filtered.filter(loc => loc.tripId === newLocation.tripId);
+        const otherLocations = filtered.filter(loc => loc.tripId !== newLocation.tripId);
+        
+        const updatedTripLocations = [...tripLocations, newLocation]
+          .sort((a, b) => {
+            const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return aTime - bTime;
+          })
+          .slice(-50); // Keep last 50 points
+        
+        return [...otherLocations, ...updatedTripLocations];
+      });
+    } else if (lastMessage?.type === 'trip_status_update' && lastMessage.data) {
+      const updatedTrip = lastMessage.data as Trip;
+      setRealtimeTrips(prev => {
+        // Update trip in realtime trips or add it
+        const filtered = prev.filter(trip => trip.id !== updatedTrip.id);
+        return [...filtered, updatedTrip];
       });
     }
   }, [lastMessage]);
@@ -76,8 +101,19 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
   // Combine initial locations with real-time updates
   const allLocations = [...initialLocations, ...realtimeLocations];
 
+  // Combine initial trips with real-time updates
+  const allTrips = [...trips];
+  realtimeTrips.forEach(realtimeTrip => {
+    const index = allTrips.findIndex(trip => trip.id === realtimeTrip.id);
+    if (index >= 0) {
+      allTrips[index] = realtimeTrip; // Replace with updated version
+    } else {
+      allTrips.push(realtimeTrip); // Add new trip
+    }
+  });
+
   // Create trip markers with details
-  const tripsWithDetails: TripWithDetails[] = trips
+  const tripsWithDetails: TripWithDetails[] = allTrips
     .filter(trip => trip.status === 'in_progress' || trip.status === 'assigned')
     .map(trip => {
       const driver = users.find(user => user.id === trip.driverId);
@@ -248,6 +284,31 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
           })}
       </MapContainer>
 
+      {/* WebSocket connection status */}
+      <motion.div
+        initial={{ opacity: 0, x: 10 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="absolute top-4 right-4 z-10"
+      >
+        <Card className="bg-background/90 backdrop-blur-sm border shadow-lg">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2 text-sm">
+              {isConnected ? (
+                <>
+                  <Wifi className="w-4 h-4 text-green-500" />
+                  <span className="text-green-500">Connected</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4 text-red-500" />
+                  <span className="text-red-500">Disconnected</span>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Map overlay info */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -259,11 +320,11 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
             <div className="text-sm space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span>In Progress ({trips.filter(t => t.status === 'in_progress').length})</span>
+                <span>In Progress ({allTrips.filter(t => t.status === 'in_progress').length})</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span>Assigned ({trips.filter(t => t.status === 'assigned').length})</span>
+                <span>Assigned ({allTrips.filter(t => t.status === 'assigned').length})</span>
               </div>
             </div>
           </CardContent>
