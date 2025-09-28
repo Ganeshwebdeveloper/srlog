@@ -325,4 +325,57 @@
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+
+  /* Custom truck tooltip styling */
+  .custom-truck-tooltip {
+    background: rgba(0, 0, 0, 0.9) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 6px !important;
+    color: white !important;
+    font-size: 12px !important;
+    padding: 0 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(8px);
+    max-width: 200px !important;
+  }
+
+  .custom-truck-tooltip .leaflet-tooltip-content {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Vehicle marker animations */
+  .vehicle-marker {
+    transition: transform 0.3s ease, filter 0.3s ease;
+  }
+
+  .vehicle-marker:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+  }
+
+  .selected-vehicle-marker {
+    transform: scale(1.15);
+    filter: drop-shadow(0 6px 12px rgba(59, 130, 246, 0.4));
+    animation: pulse-selected 2s infinite;
+  }
+
+  @keyframes pulse-selected {
+    0%, 100% {
+      transform: scale(1.15);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+  }
+
+  /* Leaflet popup customization for better UI consistency */
+  .leaflet-popup-content-wrapper {
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .leaflet-popup-tip {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
 }

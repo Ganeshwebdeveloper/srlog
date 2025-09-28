@@ -141,39 +141,91 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
     return baseLocations[index % baseLocations.length] || [51.505, -0.09];
   };
 
-  // Custom vehicle icons
-  const createVehicleIcon = (color: string, vehicleType: string) => {
-    const iconHtml = `
-      <div style="
-        background-color: ${color};
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        border: 3px solid white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: white;
-        font-weight: bold;
-      ">
-        ${vehicleType === 'truck' || vehicleType === 'Truck' ? '🚚' : '🚐'}
-      </div>
+  // Create custom truck SVG icons
+  const createTruckIcon = (color: string, vehicleType: string, driverName: string, isSelected: boolean = false) => {
+    const truckSvg = vehicleType === 'truck' || vehicleType === 'Truck' ? `
+      <!-- Truck Body -->
+      <path d="M4 18H2V16C2 14.9 2.9 14 4 14H6V18Z" fill="${color}"/>
+      <path d="M6 14H20V18H18C18 19.1 17.1 20 16 20S14 19.1 14 18H10C10 19.1 9.1 20 8 20S6 19.1 6 18Z" fill="${color}"/>
+      <path d="M20 14V10C20 8.9 19.1 8 18 8H14V14H20Z" fill="${color}"/>
+      <!-- Truck Cab -->
+      <path d="M6 8V14H14V8C14 6.9 13.1 6 12 6H8C6.9 6 6 6.9 6 8Z" fill="${color}"/>
+      <!-- Wheels -->
+      <circle cx="8" cy="18" r="1.5" fill="#333"/>
+      <circle cx="16" cy="18" r="1.5" fill="#333"/>
+      <!-- Highlights -->
+      <path d="M7 9H13V11H7Z" fill="rgba(255,255,255,0.3)"/>
+      <path d="M15 10H19V12H15Z" fill="rgba(255,255,255,0.3)"/>
+    ` : `
+      <!-- Van Body -->
+      <path d="M4 18H2V12C2 10.9 2.9 10 4 10H20C21.1 10 22 10.9 22 12V18H20C20 19.1 19.1 20 18 20S16 19.1 16 18H8C8 19.1 7.1 20 6 20S4 19.1 4 18Z" fill="${color}"/>
+      <!-- Van Windows -->
+      <path d="M5 7C5 5.9 5.9 5 7 5H17C18.1 5 19 5.9 19 7V10H5V7Z" fill="${color}"/>
+      <!-- Wheels -->
+      <circle cx="6" cy="18" r="1.5" fill="#333"/>
+      <circle cx="18" cy="18" r="1.5" fill="#333"/>
+      <!-- Windshield -->
+      <path d="M6 6H18V8H6Z" fill="rgba(255,255,255,0.4)"/>
+      <!-- Side Windows -->
+      <path d="M6 8H10V10H6Z" fill="rgba(255,255,255,0.3)"/>
+      <path d="M14 8H18V10H14Z" fill="rgba(255,255,255,0.3)"/>
+    `;
+
+    const iconSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24">
+        <defs>
+          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
+          </filter>
+        </defs>
+        <g filter="url(#shadow)">
+          ${truckSvg}
+        </g>
+        ${isSelected ? `
+          <circle cx="12" cy="12" r="11" fill="none" stroke="#fff" stroke-width="2" opacity="0.8"/>
+          <circle cx="12" cy="12" r="10" fill="none" stroke="${color}" stroke-width="2"/>
+        ` : ''}
+      </svg>
     `;
     
     return new Icon({
-      iconUrl: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30">
-          <foreignObject width="30" height="30">
-            ${iconHtml}
-          </foreignObject>
-        </svg>
-      `),
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      popupAnchor: [0, -15],
+      iconUrl: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg),
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20],
+      className: isSelected ? 'selected-vehicle-marker' : 'vehicle-marker'
     });
+  };
+
+  // Create hover tooltip component
+  const createHoverTooltip = (trip: TripWithDetails, vehicle: Vehicle | undefined) => {
+    return `
+      <div style="
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        max-width: 200px;
+        z-index: 1000;
+        pointer-events: none;
+      ">
+        <div style="font-weight: bold; margin-bottom: 4px;">
+          ${trip.driverName}
+        </div>
+        <div style="opacity: 0.9; margin-bottom: 2px;">
+          ${trip.vehiclePlate}
+        </div>
+        <div style="opacity: 0.8; font-size: 11px;">
+          Status: ${trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}
+        </div>
+        <div style="opacity: 0.8; font-size: 11px;">
+          ${trip.route.length > 30 ? trip.route.substring(0, 30) + '...' : trip.route}
+        </div>
+      </div>
+    `;
   };
 
   const getStatusColor = (status: string) => {
@@ -214,12 +266,29 @@ export default function LiveMap({ selectedTripId, onTripSelect }: LiveMapProps) 
             <Marker
               key={trip.id}
               position={position}
-              icon={createVehicleIcon(
+              icon={createTruckIcon(
                 getStatusColor(trip.status),
-                vehicle?.type || 'van'
+                vehicle?.type || 'van',
+                trip.driverName || 'Unknown Driver',
+                selectedTripId === trip.id
               )}
               eventHandlers={{
-                click: () => onTripSelect?.(trip.id)
+                click: () => onTripSelect?.(trip.id),
+                mouseover: (e) => {
+                  const marker = e.target;
+                  const tooltipHtml = createHoverTooltip(trip, vehicle);
+                  marker.bindTooltip(tooltipHtml, {
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: 'custom-truck-tooltip',
+                    opacity: 1
+                  }).openTooltip();
+                },
+                mouseout: (e) => {
+                  const marker = e.target;
+                  marker.closeTooltip();
+                }
               }}
             >
               <Popup>
