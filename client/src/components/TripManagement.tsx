@@ -33,7 +33,10 @@ import {
   Car,
   Play,
   Square,
-  CheckCircle
+  CheckCircle,
+  Download,
+  FileText,
+  FileSpreadsheet
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -42,6 +45,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Trip, Vehicle, User as UserType, InsertTrip, insertTripSchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { exportTripsToPDF, exportTripsToExcel } from "@/utils/exportUtils";
 import {
   Form,
   FormControl,
@@ -272,6 +276,31 @@ export default function TripManagement() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
+  // Export handlers
+  const handleExportPDF = () => {
+    const tripsToExport = filteredTrips.map(trip => ({
+      ...trip,
+      vehicleType: vehicles.find(v => v.id === trip.vehicleId)?.type
+    }));
+    exportTripsToPDF(tripsToExport, 'Fleet Trips Report');
+    toast({
+      title: "PDF Export",
+      description: "Trips report has been downloaded as PDF."
+    });
+  };
+
+  const handleExportExcel = () => {
+    const tripsToExport = filteredTrips.map(trip => ({
+      ...trip,
+      vehicleType: vehicles.find(v => v.id === trip.vehicleId)?.type
+    }));
+    exportTripsToExcel(tripsToExport, 'fleet_trips_report');
+    toast({
+      title: "Excel Export",
+      description: "Trips data has been downloaded as Excel file."
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -281,14 +310,37 @@ export default function TripManagement() {
           <p className="text-muted-foreground mt-1">Assign and monitor fleet trips</p>
         </div>
         
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-trip">
-              <Plus className="w-4 h-4 mr-2" />
-              Assign Trip
+        <div className="flex items-center gap-3">
+          {/* Export Buttons */}
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportPDF}
+              data-testid="button-export-pdf"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Export PDF
             </Button>
-          </DialogTrigger>
-          <DialogContent>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportExcel}
+              data-testid="button-export-excel"
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Export Excel
+            </Button>
+          </div>
+          
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-trip">
+                <Plus className="w-4 h-4 mr-2" />
+                Assign Trip
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Assign New Trip</DialogTitle>
               <DialogDescription>
@@ -378,6 +430,7 @@ export default function TripManagement() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
