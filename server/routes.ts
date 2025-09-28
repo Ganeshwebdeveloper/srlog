@@ -275,6 +275,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Trip not found" });
       }
       
+      // Automatically update vehicle and driver status based on trip status
+      if (validatedData.status) {
+        try {
+          if (validatedData.status === 'in_progress') {
+            // Update vehicle status to in_use
+            await storage.updateVehicle(updatedTrip.vehicleId, { status: 'in_use' });
+            // Update driver status to on_trip
+            await storage.updateUser(updatedTrip.driverId, { status: 'on_trip' });
+          } else if (validatedData.status === 'completed' || validatedData.status === 'cancelled') {
+            // Update vehicle status to available
+            await storage.updateVehicle(updatedTrip.vehicleId, { status: 'available' });
+            // Update driver status to available
+            await storage.updateUser(updatedTrip.driverId, { status: 'available' });
+          }
+        } catch (statusUpdateError) {
+          console.error("Error updating vehicle/driver status:", statusUpdateError);
+          // Don't fail the trip update if status updates fail, just log the error
+        }
+      }
+      
       res.json(updatedTrip);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -592,6 +612,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const updatedTrip = await storage.updateTrip(tripId, updateData);
             
             if (updatedTrip) {
+              // Automatically update vehicle and driver status based on trip status
+              try {
+                if (status === 'in_progress') {
+                  // Update vehicle status to in_use
+                  await storage.updateVehicle(updatedTrip.vehicleId, { status: 'in_use' });
+                  // Update driver status to on_trip
+                  await storage.updateUser(updatedTrip.driverId, { status: 'on_trip' });
+                } else if (status === 'completed' || status === 'cancelled') {
+                  // Update vehicle status to available
+                  await storage.updateVehicle(updatedTrip.vehicleId, { status: 'available' });
+                  // Update driver status to available
+                  await storage.updateUser(updatedTrip.driverId, { status: 'available' });
+                }
+              } catch (statusUpdateError) {
+                console.error("Error updating vehicle/driver status via WebSocket:", statusUpdateError);
+                // Don't fail the trip update if status updates fail, just log the error
+              }
+              
               // Broadcast trip status update to all clients
               const statusUpdate = {
                 type: 'trip_status_update',
