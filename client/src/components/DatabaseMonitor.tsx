@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,18 +41,25 @@ interface DatabaseMonitorProps {
 }
 
 export default function DatabaseMonitor({ className }: DatabaseMonitorProps) {
-  const [refreshCount, setRefreshCount] = useState(0);
 
   // Fetch database statistics
   const { data: dbStats, isLoading, error, refetch } = useQuery<DatabaseStats>({
-    queryKey: ['/api/database/stats', refreshCount],
+    queryKey: ['/api/database/stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/database/stats', {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
     refetchInterval: 30000, // Auto-refresh every 30 seconds
     retry: 3,
   });
 
   // Manual refresh
   const handleRefresh = () => {
-    setRefreshCount(prev => prev + 1);
     refetch();
   };
 
