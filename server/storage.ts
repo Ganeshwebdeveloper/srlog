@@ -509,45 +509,58 @@ export class DatabaseStorage implements IStorage {
       const tripsCount = await db.select({ count: sql`count(*)` }).from(trips);
       const locationsCount = await db.select({ count: sql`count(*)` }).from(locations);
 
-      // PostgreSQL table size queries
-      const tableSizes = await db.execute(sql`
-        SELECT 
-          schemaname as schema_name,
-          tablename as table_name,
-          pg_total_relation_size(schemaname||'.'||tablename) as size_bytes,
-          pg_total_relation_size(schemaname||'.'||tablename)/(1024*1024) as size_mb
-        FROM pg_tables 
-        WHERE schemaname = 'public'
-        AND tablename IN ('users', 'vehicles', 'trips', 'locations')
-      `);
+      // PostgreSQL table size queries - using a safer approach
+      let tableSizeData: any[] = [];
+      try {
+        const tableSizes = await db.execute(sql`
+          SELECT 
+            schemaname as schema_name,
+            tablename as table_name,
+            pg_total_relation_size(schemaname||'.'||tablename) as size_bytes,
+            pg_total_relation_size(schemaname||'.'||tablename)/(1024*1024) as size_mb
+          FROM pg_tables 
+          WHERE schemaname = 'public'
+          AND tablename IN ('users', 'vehicles', 'trips', 'locations')
+        `);
+        
+        // Handle different result structures (rows property vs direct array)
+        tableSizeData = tableSizes.rows || tableSizes || [];
+      } catch (error) {
+        console.error('Error getting table sizes:', error);
+        tableSizeData = [];
+      }
+
+      const findTableSize = (tableName: string) => {
+        const tableData = tableSizeData.find((t: any) => t.table_name === tableName);
+        return {
+          sizeBytes: Number(tableData?.size_bytes || 0),
+          sizeMB: Number(tableData?.size_mb || 0)
+        };
+      };
 
       const tables = [
         {
           name: 'users',
           rowCount: Number(usersCount[0]?.count || 0),
-          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'users')?.size_bytes || 0),
-          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'users')?.size_mb || 0),
+          ...findTableSize('users'),
           lastUpdated: new Date().toISOString()
         },
         {
           name: 'vehicles',
           rowCount: Number(vehiclesCount[0]?.count || 0),
-          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'vehicles')?.size_bytes || 0),
-          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'vehicles')?.size_mb || 0),
+          ...findTableSize('vehicles'),
           lastUpdated: new Date().toISOString()
         },
         {
           name: 'trips',
           rowCount: Number(tripsCount[0]?.count || 0),
-          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'trips')?.size_bytes || 0),
-          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'trips')?.size_mb || 0),
+          ...findTableSize('trips'),
           lastUpdated: new Date().toISOString()
         },
         {
           name: 'locations',
           rowCount: Number(locationsCount[0]?.count || 0),
-          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'locations')?.size_bytes || 0),
-          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'locations')?.size_mb || 0),
+          ...findTableSize('locations'),
           lastUpdated: new Date().toISOString()
         }
       ];
@@ -557,13 +570,21 @@ export class DatabaseStorage implements IStorage {
       const totalSizeMB = totalSize / (1024 * 1024);
 
       // Get database connection and activity stats
-      const dbStats = await db.execute(sql`
-        SELECT 
-          (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active_connections,
-          (SELECT sum(numbackends) FROM pg_stat_database) as total_connections
-      `);
-
-      const connectionCount = Number(dbStats.rows[0]?.active_connections || 1);
+      let connectionCount = 1;
+      try {
+        const dbStats = await db.execute(sql`
+          SELECT 
+            (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active_connections,
+            (SELECT sum(numbackends) FROM pg_stat_database) as total_connections
+        `);
+        
+        // Handle different result structures (rows property vs direct array)
+        const statsData = dbStats.rows || dbStats || [];
+        connectionCount = Number(statsData[0]?.active_connections || 1);
+      } catch (error) {
+        console.error('Error getting connection stats:', error);
+        connectionCount = 1;
+      }
       
       // Memory usage (mock for demonstration - real implementation would need system queries)
       const memoryUsed = totalSize;
