@@ -487,8 +487,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTrip(id: string): Promise<boolean> {
-    const result = await db.delete(trips).where(eq(trips.id, id)).returning();
-    return result.length > 0;
+    try {
+      // First delete all locations associated with this trip
+      await db.delete(locations).where(eq(locations.tripId, id));
+      
+      // Then delete the trip itself
+      const result = await db.delete(trips).where(eq(trips.id, id)).returning();
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error deleting trip:', error);
+      throw error;
+    }
   }
 
   // Location operations
