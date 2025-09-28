@@ -1,6 +1,6 @@
 import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, users, vehicles, trips, locations } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { db } from "./db";
+import { db, initializeDatabase } from "./db";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
@@ -10,6 +10,7 @@ import bcrypt from "bcrypt";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
+  getDrivers(): Promise<User[]>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
@@ -113,6 +114,10 @@ export class MemStorage implements IStorage {
 
   async getUsers(): Promise<User[]> {
     return Array.from(this.users.values());
+  }
+
+  async getDrivers(): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => user.role === 'driver');
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -258,6 +263,10 @@ export class DatabaseStorage implements IStorage {
 
   async getUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async getDrivers(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, 'driver'));
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -418,8 +427,38 @@ async function initSampleData() {
   }
 }
 
-// Use database storage and initialize sample data
-export const storage = new DatabaseStorage();
+// Initialize storage with proper database connectivity check
+let storage: IStorage;
 
-// Initialize sample data when the module loads
-initSampleData().catch(console.error);
+async function initializeStorage(): Promise<IStorage> {
+  const dbConnection = await initializeDatabase();
+  
+  if (dbConnection) {
+    console.log("Using database storage");
+    storage = new DatabaseStorage();
+    // Initialize sample data for database
+    try {
+      await initSampleData();
+    } catch (error) {
+      console.error("Failed to initialize sample data, falling back to in-memory storage:", error);
+      storage = new MemStorage();
+    }
+  } else {
+    console.log("Using in-memory storage");
+    storage = new MemStorage();
+  }
+  
+  return storage;
+}
+
+// Initialize storage asynchronously but export synchronously for compatibility
+storage = new MemStorage(); // Default fallback
+
+initializeStorage().then((initializedStorage) => {
+  storage = initializedStorage;
+}).catch((error) => {
+  console.error("Storage initialization failed, using in-memory storage:", error);
+  storage = new MemStorage();
+});
+
+export { storage };
