@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().$type<"admin" | "driver">(),
+  status: text("status").$type<"available" | "on_trip">().default("available"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -78,6 +78,7 @@ export class MemStorage implements IStorage {
       email: "admin@srlogistics.com",
       password: "$2b$10$ubTkp.g4BDWCejM.hf.63.zkn1Ap73pRxNO2LQvMpO6Yy9TgC0p9a", // bcrypt hash of "admin123"
       role: "admin",
+      status: "available",
       createdAt: new Date()
     };
     
@@ -88,6 +89,7 @@ export class MemStorage implements IStorage {
       email: "driver@srlogistics.com",
       password: "$2b$10$gAAttSPm6MVsQkKdlFqNUe6hRVjwuU3mqM2ens9UkyFKC7R1w3YzC", // bcrypt hash of "driver123"
       role: "driver",
+      status: "available",
       createdAt: new Date()
     };
     
@@ -171,7 +173,8 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id, 
       createdAt: new Date(),
-      role: insertUser.role as "admin" | "driver"
+      role: insertUser.role as "admin" | "driver",
+      status: (insertUser.status as "available" | "on_trip") || "available"
     };
     this.users.set(id, user);
     return user;
@@ -184,7 +187,8 @@ export class MemStorage implements IStorage {
     const updatedUser: User = { 
       ...user, 
       ...updates,
-      role: (updates.role || user.role) as "admin" | "driver"
+      role: (updates.role || user.role) as "admin" | "driver",
+      status: (updates.status as "available" | "on_trip") || user.status
     };
     this.users.set(id, updatedUser);
     return updatedUser;
