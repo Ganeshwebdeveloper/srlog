@@ -1,7 +1,7 @@
 import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, users, vehicles, trips, locations } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db, initializeDatabase } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 // modify the interface with any CRUD methods
@@ -31,6 +31,27 @@ export interface IStorage {
   // Location operations
   getLocationsByTrip(tripId: string): Promise<Location[]>;
   createLocation(location: InsertLocation): Promise<Location>;
+  // Database statistics operations
+  getDatabaseStats(): Promise<{
+    tables: Array<{
+      name: string;
+      rowCount: number;
+      sizeBytes: number;
+      sizeMB: number;
+      lastUpdated: string;
+    }>;
+    totalSize: number;
+    totalSizeMB: number;
+    totalRecords: number;
+    memoryUsage: {
+      used: number;
+      total: number;
+      percentage: number;
+    };
+    connectionCount: number;
+    queryCount: number;
+    healthStatus: 'healthy' | 'warning' | 'critical';
+  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -79,6 +100,11 @@ export class MemStorage implements IStorage {
       numberPlate: "TRK-001",
       type: "Truck",
       status: "available",
+      model: "Volvo FH16",
+      year: "2023",
+      fuelType: "diesel",
+      capacity: "25000",
+      mileage: "85000",
       createdAt: new Date()
     };
     
@@ -87,6 +113,11 @@ export class MemStorage implements IStorage {
       numberPlate: "VAN-205",
       type: "Van",
       status: "in_use",
+      model: "Mercedes Sprinter",
+      year: "2022",
+      fuelType: "diesel",
+      capacity: "3500",
+      mileage: "45000",
       createdAt: new Date()
     };
     
@@ -100,6 +131,13 @@ export class MemStorage implements IStorage {
       vehicleId: vehicle2.id,
       route: "Warehouse A → Customer Site",
       status: "assigned",
+      startLocation: "Warehouse A",
+      endLocation: "Customer Site",
+      distance: "45.5",
+      estimatedDuration: "2.5",
+      fuelConsumed: null,
+      priority: "medium",
+      notes: "Standard delivery",
       startTime: null,
       endTime: null,
       createdAt: new Date()
@@ -167,10 +205,16 @@ export class MemStorage implements IStorage {
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
     const id = randomUUID();
     const vehicle: Vehicle = { 
-      ...insertVehicle, 
       id, 
       createdAt: new Date(),
-      status: insertVehicle.status as "available" | "in_use" | "maintenance"
+      numberPlate: insertVehicle.numberPlate,
+      type: insertVehicle.type,
+      status: insertVehicle.status as "available" | "in_use" | "maintenance",
+      model: insertVehicle.model || null,
+      year: insertVehicle.year || null,
+      fuelType: insertVehicle.fuelType as "diesel" | "petrol" | "electric" | "hybrid" | null,
+      capacity: insertVehicle.capacity || null,
+      mileage: insertVehicle.mileage || null
     };
     this.vehicles.set(id, vehicle);
     return vehicle;
@@ -183,7 +227,8 @@ export class MemStorage implements IStorage {
     const updatedVehicle: Vehicle = { 
       ...vehicle, 
       ...updates,
-      status: (updates.status || vehicle.status) as "available" | "in_use" | "maintenance"
+      status: (updates.status || vehicle.status) as "available" | "in_use" | "maintenance",
+      fuelType: (updates.fuelType || vehicle.fuelType) as "diesel" | "petrol" | "electric" | "hybrid" | null
     };
     this.vehicles.set(id, updatedVehicle);
     return updatedVehicle;
@@ -209,12 +254,21 @@ export class MemStorage implements IStorage {
   async createTrip(insertTrip: InsertTrip): Promise<Trip> {
     const id = randomUUID();
     const trip: Trip = { 
-      ...insertTrip, 
       id, 
       createdAt: new Date(),
+      driverId: insertTrip.driverId,
+      vehicleId: insertTrip.vehicleId,
+      route: insertTrip.route,
+      status: insertTrip.status as "assigned" | "in_progress" | "completed" | "cancelled",
+      startLocation: insertTrip.startLocation || null,
+      endLocation: insertTrip.endLocation || null,
+      distance: insertTrip.distance || null,
+      estimatedDuration: insertTrip.estimatedDuration || null,
+      fuelConsumed: insertTrip.fuelConsumed || null,
+      priority: (insertTrip.priority || "medium") as "low" | "medium" | "high" | "urgent",
+      notes: insertTrip.notes || null,
       startTime: null,
-      endTime: null,
-      status: insertTrip.status as "assigned" | "in_progress" | "completed" | "cancelled"
+      endTime: null
     };
     this.trips.set(id, trip);
     return trip;
@@ -227,7 +281,8 @@ export class MemStorage implements IStorage {
     const updatedTrip: Trip = { 
       ...trip, 
       ...updates,
-      status: (updates.status || trip.status) as "assigned" | "in_progress" | "completed" | "cancelled"
+      status: (updates.status || trip.status) as "assigned" | "in_progress" | "completed" | "cancelled",
+      priority: (updates.priority || trip.priority) as "low" | "medium" | "high" | "urgent"
     };
     this.trips.set(id, updatedTrip);
     return updatedTrip;
@@ -245,12 +300,85 @@ export class MemStorage implements IStorage {
   async createLocation(insertLocation: InsertLocation): Promise<Location> {
     const id = randomUUID();
     const location: Location = { 
-      ...insertLocation, 
       id, 
+      tripId: insertLocation.tripId,
+      latitude: insertLocation.latitude,
+      longitude: insertLocation.longitude,
+      altitude: insertLocation.altitude || null,
+      speed: insertLocation.speed || null,
+      heading: insertLocation.heading || null,
+      accuracy: insertLocation.accuracy || null,
       timestamp: new Date()
     };
     this.locations.set(id, location);
     return location;
+  }
+
+  async getDatabaseStats() {
+    // Calculate mock statistics for in-memory storage
+    const usersCount = this.users.size;
+    const vehiclesCount = this.vehicles.size;
+    const tripsCount = this.trips.size;
+    const locationsCount = this.locations.size;
+
+    const tables = [
+      {
+        name: 'users',
+        rowCount: usersCount,
+        sizeBytes: usersCount * 200, // estimated bytes per record
+        sizeMB: (usersCount * 200) / (1024 * 1024),
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        name: 'vehicles',
+        rowCount: vehiclesCount,
+        sizeBytes: vehiclesCount * 300,
+        sizeMB: (vehiclesCount * 300) / (1024 * 1024),
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        name: 'trips',
+        rowCount: tripsCount,
+        sizeBytes: tripsCount * 400,
+        sizeMB: (tripsCount * 400) / (1024 * 1024),
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        name: 'locations',
+        rowCount: locationsCount,
+        sizeBytes: locationsCount * 150,
+        sizeMB: (locationsCount * 150) / (1024 * 1024),
+        lastUpdated: new Date().toISOString()
+      }
+    ];
+
+    const totalRecords = usersCount + vehiclesCount + tripsCount + locationsCount;
+    const totalSize = tables.reduce((sum, table) => sum + table.sizeBytes, 0);
+    const totalSizeMB = totalSize / (1024 * 1024);
+
+    // Mock memory usage (for demonstration)
+    const memoryUsed = totalSize;
+    const memoryTotal = 50 * 1024 * 1024; // 50MB mock limit
+    const memoryPercentage = Math.min((memoryUsed / memoryTotal) * 100, 100);
+
+    let healthStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+    if (memoryPercentage > 80) healthStatus = 'critical';
+    else if (memoryPercentage > 60) healthStatus = 'warning';
+
+    return {
+      tables,
+      totalSize,
+      totalSizeMB,
+      totalRecords,
+      memoryUsage: {
+        used: memoryUsed,
+        total: memoryTotal,
+        percentage: Math.round(memoryPercentage)
+      },
+      connectionCount: 1, // In-memory has single connection
+      queryCount: totalRecords * 2, // Mock query count
+      healthStatus
+    };
   }
 }
 
@@ -369,6 +497,113 @@ export class DatabaseStorage implements IStorage {
   async createLocation(insertLocation: InsertLocation): Promise<Location> {
     const result = await db.insert(locations).values([insertLocation]).returning();
     return result[0];
+  }
+
+  async getDatabaseStats() {
+    try {
+      // Get row counts for each table
+      const usersCount = await db.select({ count: sql`count(*)` }).from(users);
+      const vehiclesCount = await db.select({ count: sql`count(*)` }).from(vehicles);
+      const tripsCount = await db.select({ count: sql`count(*)` }).from(trips);
+      const locationsCount = await db.select({ count: sql`count(*)` }).from(locations);
+
+      // PostgreSQL table size queries
+      const tableSizes = await db.execute(sql`
+        SELECT 
+          schemaname as schema_name,
+          tablename as table_name,
+          pg_total_relation_size(schemaname||'.'||tablename) as size_bytes,
+          pg_total_relation_size(schemaname||'.'||tablename)/(1024*1024) as size_mb
+        FROM pg_tables 
+        WHERE schemaname = 'public'
+        AND tablename IN ('users', 'vehicles', 'trips', 'locations')
+      `);
+
+      const tables = [
+        {
+          name: 'users',
+          rowCount: Number(usersCount[0]?.count || 0),
+          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'users')?.size_bytes || 0),
+          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'users')?.size_mb || 0),
+          lastUpdated: new Date().toISOString()
+        },
+        {
+          name: 'vehicles',
+          rowCount: Number(vehiclesCount[0]?.count || 0),
+          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'vehicles')?.size_bytes || 0),
+          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'vehicles')?.size_mb || 0),
+          lastUpdated: new Date().toISOString()
+        },
+        {
+          name: 'trips',
+          rowCount: Number(tripsCount[0]?.count || 0),
+          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'trips')?.size_bytes || 0),
+          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'trips')?.size_mb || 0),
+          lastUpdated: new Date().toISOString()
+        },
+        {
+          name: 'locations',
+          rowCount: Number(locationsCount[0]?.count || 0),
+          sizeBytes: Number(tableSizes.rows.find((t: any) => t.table_name === 'locations')?.size_bytes || 0),
+          sizeMB: Number(tableSizes.rows.find((t: any) => t.table_name === 'locations')?.size_mb || 0),
+          lastUpdated: new Date().toISOString()
+        }
+      ];
+
+      const totalRecords = tables.reduce((sum, table) => sum + table.rowCount, 0);
+      const totalSize = tables.reduce((sum, table) => sum + table.sizeBytes, 0);
+      const totalSizeMB = totalSize / (1024 * 1024);
+
+      // Get database connection and activity stats
+      const dbStats = await db.execute(sql`
+        SELECT 
+          (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active_connections,
+          (SELECT sum(numbackends) FROM pg_stat_database) as total_connections
+      `);
+
+      const connectionCount = Number(dbStats.rows[0]?.active_connections || 1);
+      
+      // Memory usage (mock for demonstration - real implementation would need system queries)
+      const memoryUsed = totalSize;
+      const memoryTotal = 100 * 1024 * 1024; // 100MB mock limit
+      const memoryPercentage = Math.min((memoryUsed / memoryTotal) * 100, 100);
+
+      let healthStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+      if (memoryPercentage > 80) healthStatus = 'critical';
+      else if (memoryPercentage > 60) healthStatus = 'warning';
+
+      return {
+        tables,
+        totalSize,
+        totalSizeMB,
+        totalRecords,
+        memoryUsage: {
+          used: memoryUsed,
+          total: memoryTotal,
+          percentage: Math.round(memoryPercentage)
+        },
+        connectionCount,
+        queryCount: totalRecords * 3, // Mock query count
+        healthStatus
+      };
+    } catch (error) {
+      console.error('Error getting database stats:', error);
+      // Return fallback stats if database queries fail
+      return {
+        tables: [],
+        totalSize: 0,
+        totalSizeMB: 0,
+        totalRecords: 0,
+        memoryUsage: {
+          used: 0,
+          total: 100 * 1024 * 1024,
+          percentage: 0
+        },
+        connectionCount: 0,
+        queryCount: 0,
+        healthStatus: 'critical' as const
+      };
+    }
   }
 }
 

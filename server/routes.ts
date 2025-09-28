@@ -458,6 +458,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Database statistics route
+  app.get("/api/database/stats", async (req, res) => {
+    try {
+      const dbStats = await storage.getDatabaseStats();
+      res.json(dbStats);
+    } catch (error: any) {
+      console.error("Database stats error:", error);
+      res.status(500).json({ 
+        message: "Failed to retrieve database statistics",
+        error: error.message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // Set up WebSocket server on the same HTTP server with path
@@ -566,11 +580,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           try {
-            const updatedTrip = await storage.updateTrip(tripId, { 
-              status: status as "assigned" | "in_progress" | "completed" | "cancelled",
-              startTime: status === 'in_progress' ? new Date() : undefined,
-              endTime: status === 'completed' ? new Date() : undefined
-            });
+            const updateData: any = { 
+              status: status as "assigned" | "in_progress" | "completed" | "cancelled"
+            };
+            if (status === 'in_progress') {
+              updateData.startTime = new Date();
+            } else if (status === 'completed') {
+              updateData.endTime = new Date();
+            }
+            
+            const updatedTrip = await storage.updateTrip(tripId, updateData);
             
             if (updatedTrip) {
               // Broadcast trip status update to all clients
