@@ -80,6 +80,9 @@ export default function TripManagement() {
   const [viewMode, setViewMode] = useState<"cards" | "table">("table");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [tripToDelete, setTripToDelete] = useState<Trip | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
   const { toast } = useToast();
 
   // Fetch data
@@ -241,8 +244,26 @@ export default function TripManagement() {
   };
 
   const handleDelete = (trip: Trip) => {
-    if (confirm(`Are you sure you want to delete this trip?`)) {
-      deleteTripMutation.mutate(trip.id);
+    setTripToDelete(trip);
+    setIsDeleteDialogOpen(true);
+    setDeletePassword("");
+  };
+
+  const confirmDelete = () => {
+    if (deletePassword !== "delete") {
+      toast({
+        variant: "destructive",
+        title: "Invalid password",
+        description: "Please type 'delete' to confirm deletion."
+      });
+      return;
+    }
+
+    if (tripToDelete) {
+      deleteTripMutation.mutate(tripToDelete.id);
+      setIsDeleteDialogOpen(false);
+      setTripToDelete(null);
+      setDeletePassword("");
     }
   };
 
@@ -1083,6 +1104,67 @@ export default function TripManagement() {
               </form>
             </Form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Trip Deletion</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete the trip and all associated location data.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {tripToDelete && (
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium">Trip Details:</h4>
+                <p className="text-sm text-muted-foreground">Route: {tripToDelete.route}</p>
+                <p className="text-sm text-muted-foreground">Status: {tripToDelete.status}</p>
+              </div>
+            )}
+            
+            <div>
+              <label htmlFor="delete-password" className="text-sm font-medium">
+                Type "delete" to confirm:
+              </label>
+              <Input
+                id="delete-password"
+                type="text"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Type 'delete' to confirm"
+                className="mt-1"
+                data-testid="input-delete-password"
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2 mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setTripToDelete(null);
+                setDeletePassword("");
+              }}
+              data-testid="button-cancel-delete"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deletePassword !== "delete" || deleteTripMutation.isPending}
+              data-testid="button-confirm-delete"
+            >
+              {deleteTripMutation.isPending ? "Deleting..." : "Delete Trip"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
