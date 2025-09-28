@@ -71,6 +71,13 @@ interface TripWithDetails extends Trip {
 export default function TripManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [driverFilter, setDriverFilter] = useState<string>("all");
+  const [vehicleFilter, setVehicleFilter] = useState<string>("all");
+  const [dateFromFilter, setDateFromFilter] = useState<string>("");
+  const [dateToFilter, setDateToFilter] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("table");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const { toast } = useToast();
@@ -171,7 +178,8 @@ export default function TripManagement() {
       driverId: "",
       vehicleId: "",
       route: "",
-      status: "assigned"
+      status: "assigned",
+      driverWage: ""
     }
   });
 
@@ -182,7 +190,8 @@ export default function TripManagement() {
       driverId: "",
       vehicleId: "",
       route: "",
-      status: "assigned"
+      status: "assigned",
+      driverWage: ""
     }
   });
 
@@ -193,7 +202,8 @@ export default function TripManagement() {
         driverId: editingTrip.driverId,
         vehicleId: editingTrip.vehicleId,
         route: editingTrip.route,
-        status: editingTrip.status
+        status: editingTrip.status,
+        driverWage: editingTrip.driverWage || ""
       });
     }
   }, [editingTrip, editForm]);
@@ -233,14 +243,77 @@ export default function TripManagement() {
     };
   });
 
-  // Filter trips
-  const filteredTrips = tripsWithDetails.filter((trip) => {
-    const matchesSearch = trip.route.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         trip.driverName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         trip.vehiclePlate?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || trip.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Filter and sort trips
+  const filteredAndSortedTrips = React.useMemo(() => {
+    let filtered = tripsWithDetails.filter((trip) => {
+      const matchesSearch = trip.route.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           trip.driverName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           trip.vehiclePlate?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || trip.status === statusFilter;
+      const matchesDriver = driverFilter === "all" || trip.driverId === driverFilter;
+      const matchesVehicle = vehicleFilter === "all" || trip.vehicleId === vehicleFilter;
+      
+      // Date filtering
+      let matchesDateRange = true;
+      if (dateFromFilter || dateToFilter) {
+        const tripDate = new Date(trip.createdAt || new Date());
+        if (dateFromFilter) {
+          const fromDate = new Date(dateFromFilter);
+          matchesDateRange = matchesDateRange && tripDate >= fromDate;
+        }
+        if (dateToFilter) {
+          const toDate = new Date(dateToFilter);
+          toDate.setHours(23, 59, 59, 999); // End of day
+          matchesDateRange = matchesDateRange && tripDate <= toDate;
+        }
+      }
+      
+      return matchesSearch && matchesStatus && matchesDriver && matchesVehicle && matchesDateRange;
+    });
+
+    // Sort trips
+    filtered.sort((a, b) => {
+      let valueA: any;
+      let valueB: any;
+      
+      switch (sortBy) {
+        case "driverName":
+          valueA = a.driverName || "";
+          valueB = b.driverName || "";
+          break;
+        case "vehiclePlate":
+          valueA = a.vehiclePlate || "";
+          valueB = b.vehiclePlate || "";
+          break;
+        case "route":
+          valueA = a.route;
+          valueB = b.route;
+          break;
+        case "status":
+          valueA = a.status;
+          valueB = b.status;
+          break;
+        case "driverWage":
+          valueA = parseFloat(a.driverWage || "0");
+          valueB = parseFloat(b.driverWage || "0");
+          break;
+        case "createdAt":
+        default:
+          valueA = new Date(a.createdAt || new Date());
+          valueB = new Date(b.createdAt || new Date());
+          break;
+      }
+      
+      if (valueA < valueB) return sortOrder === "asc" ? -1 : 1;
+      if (valueA > valueB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [tripsWithDetails, searchTerm, statusFilter, driverFilter, vehicleFilter, dateFromFilter, dateToFilter, sortBy, sortOrder]);
+
+  // For backward compatibility
+  const filteredTrips = filteredAndSortedTrips;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -410,6 +483,26 @@ export default function TripManagement() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={createForm.control}
+                  name="driverWage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Driver Wage (₹)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="e.g. 1500.00" 
+                          type="number" 
+                          step="0.01" 
+                          {...field}
+                          value={field.value || ""}
+                          data-testid="input-driver-wage" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="flex justify-end gap-2">
                   <Button
                     type="button"
@@ -433,26 +526,44 @@ export default function TripManagement() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Advanced Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Search trips..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                  data-testid="input-search"
-                />
-              </div>
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">Filters & View Options</h3>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={viewMode === "cards" ? "default" : "outline"}
+                onClick={() => setViewMode("cards")}
+              >
+                Cards
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "table" ? "default" : "outline"}
+                onClick={() => setViewMode("table")}
+              >
+                Table
+              </Button>
             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search trips..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+                data-testid="input-search"
+              />
+            </div>
+            
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]" data-testid="select-filter">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue />
+              <SelectTrigger data-testid="select-status-filter">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
@@ -462,14 +573,106 @@ export default function TripManagement() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            
+            <Select value={driverFilter} onValueChange={setDriverFilter}>
+              <SelectTrigger data-testid="select-driver-filter">
+                <SelectValue placeholder="Driver" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Drivers</SelectItem>
+                {drivers.map((driver) => (
+                  <SelectItem key={driver.id} value={driver.id}>
+                    {driver.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
+              <SelectTrigger data-testid="select-vehicle-filter">
+                <SelectValue placeholder="Vehicle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vehicles</SelectItem>
+                {vehicles.map((vehicle) => (
+                  <SelectItem key={vehicle.id} value={vehicle.id}>
+                    {vehicle.numberPlate}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Input
+              type="date"
+              placeholder="From Date"
+              value={dateFromFilter}
+              onChange={(e) => setDateFromFilter(e.target.value)}
+              data-testid="input-date-from"
+            />
+            
+            <Input
+              type="date"
+              placeholder="To Date"
+              value={dateToFilter}
+              onChange={(e) => setDateToFilter(e.target.value)}
+              data-testid="input-date-to"
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Sort by:</span>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[150px]" data-testid="select-sort-by">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="createdAt">Date Created</SelectItem>
+                  <SelectItem value="driverName">Driver Name</SelectItem>
+                  <SelectItem value="vehiclePlate">Vehicle</SelectItem>
+                  <SelectItem value="route">Route</SelectItem>
+                  <SelectItem value="status">Status</SelectItem>
+                  <SelectItem value="driverWage">Driver Wage</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                data-testid="button-sort-order"
+              >
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </Button>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportPDF}
+                data-testid="button-export-pdf"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Export PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportExcel}
+                data-testid="button-export-excel"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export Excel
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Trips List */}
-      <div className="space-y-4">
-        {tripsLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
+      {/* Trips Display */}
+      {tripsLoading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -484,20 +687,139 @@ export default function TripManagement() {
                 </div>
               </CardContent>
             </Card>
-          ))
-        ) : filteredTrips.length === 0 ? (
-          <div className="text-center py-12">
-            <MapPin className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No trips found</h3>
-            <p className="text-muted-foreground">
-              {searchTerm || statusFilter !== "all" 
-                ? "Try adjusting your search filters"
-                : "Start by assigning your first trip"
-              }
-            </p>
-          </div>
-        ) : (
-          filteredTrips.map((trip, index) => {
+          ))}
+        </div>
+      ) : filteredTrips.length === 0 ? (
+        <div className="text-center py-12">
+          <MapPin className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No trips found</h3>
+          <p className="text-muted-foreground">
+            {searchTerm || statusFilter !== "all" 
+              ? "Try adjusting your search filters"
+              : "Start by assigning your first trip"
+            }
+          </p>
+        </div>
+      ) : viewMode === "table" ? (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full" data-testid="trips-table">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Driver</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Vehicle</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Route</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Wage (₹)</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Created</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTrips.map((trip, index) => {
+                    const StatusIcon = getStatusIcon(trip.status);
+                    
+                    return (
+                      <motion.tr
+                        key={trip.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="border-b hover:bg-muted/25 transition-colors"
+                        data-testid={`trip-row-${trip.id}`}
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                {getInitials(trip.driverName || 'U')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{trip.driverName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="text-xs">
+                            <Car className="w-3 h-3 mr-1" />
+                            {trip.vehiclePlate}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-sm">{trip.route}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={getStatusVariant(trip.status)} className="gap-1">
+                            <StatusIcon className="w-3 h-3" />
+                            {trip.status.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-medium">
+                            {trip.driverWage ? `₹${parseFloat(trip.driverWage).toLocaleString()}` : 'Not set'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-sm text-muted-foreground">
+                            {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString() : 'Unknown'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            {trip.status === 'assigned' && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleStatusChange(trip, 'in_progress')}
+                                data-testid={`button-start-${trip.id}`}
+                              >
+                                <Play className="w-3 h-3 mr-1" />
+                                Start
+                              </Button>
+                            )}
+                            
+                            {trip.status === 'in_progress' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStatusChange(trip, 'completed')}
+                                data-testid={`button-complete-${trip.id}`}
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Complete
+                              </Button>
+                            )}
+                            
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingTrip(trip)}
+                              data-testid={`button-edit-${trip.id}`}
+                            >
+                              <Edit className="w-3 h-3" />
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(trip)}
+                              disabled={deleteTripMutation.isPending}
+                              data-testid={`button-delete-${trip.id}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredTrips.map((trip, index) => {
             const StatusIcon = getStatusIcon(trip.status);
             
             return (
@@ -529,6 +851,9 @@ export default function TripManagement() {
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span>
                               Created: {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString() : 'Unknown'}
+                            </span>
+                            <span>
+                              Wage: {trip.driverWage ? `₹${parseFloat(trip.driverWage).toLocaleString()}` : 'Not set'}
                             </span>
                             {trip.startTime && (
                               <span>
@@ -597,9 +922,9 @@ export default function TripManagement() {
                 </Card>
               </motion.div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={!!editingTrip} onOpenChange={() => setEditingTrip(null)}>
@@ -669,6 +994,26 @@ export default function TripManagement() {
                       <FormLabel>Route</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. Warehouse A → Customer Site" {...field} data-testid="input-edit-route" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="driverWage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Driver Wage (₹)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="e.g. 1500.00" 
+                          type="number" 
+                          step="0.01" 
+                          {...field}
+                          value={field.value || ""}
+                          data-testid="input-edit-driver-wage" 
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

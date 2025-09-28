@@ -39,6 +39,7 @@ export const trips = pgTable("trips", {
   distance: decimal("distance", { precision: 8, scale: 2 }), // km
   estimatedDuration: decimal("estimated_duration", { precision: 6, scale: 2 }), // hours
   fuelConsumed: decimal("fuel_consumed", { precision: 8, scale: 2 }), // liters
+  driverWage: decimal("driver_wage", { precision: 10, scale: 2 }), // rupees
   priority: text("priority").$type<"low" | "medium" | "high" | "urgent">().default("medium"),
   notes: text("notes"),
   startTime: timestamp("start_time"),
