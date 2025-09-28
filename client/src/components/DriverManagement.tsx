@@ -54,6 +54,13 @@ const driverFormSchema = insertUserSchema.extend({
   role: insertUserSchema.shape.role.refine(val => val === "driver", "Only driver role allowed")
 });
 
+const editDriverFormSchema = insertUserSchema.extend({
+  name: insertUserSchema.shape.name.min(1, "Name is required"),
+  email: insertUserSchema.shape.email.email("Invalid email address"),
+  password: insertUserSchema.shape.password.min(6, "Password must be at least 6 characters").optional().or(insertUserSchema.shape.password.length(0)),
+  role: insertUserSchema.shape.role.refine(val => val === "driver", "Only driver role allowed")
+});
+
 type DriverFormData = InsertUser;
 
 export default function DriverManagement() {
@@ -97,10 +104,33 @@ export default function DriverManagement() {
     }
   });
 
-  // Delete driver mutation (we don't have update endpoint for users currently)
+  // Update driver mutation
+  const updateDriverMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<DriverFormData> }) => {
+      const response = await apiRequest("PUT", `/api/users/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      setEditingDriver(null);
+      editForm.reset();
+      toast({
+        title: "Driver updated",
+        description: "Driver has been updated successfully."
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error updating driver",
+        description: error.message || "Something went wrong."
+      });
+    }
+  });
+
+  // Delete driver mutation
   const deleteDriverMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Note: We need to implement DELETE /api/users/:id endpoint
       const response = await apiRequest("DELETE", `/api/users/${id}`);
       return response.json();
     },
@@ -115,7 +145,7 @@ export default function DriverManagement() {
       toast({
         variant: "destructive",
         title: "Error deleting driver", 
-        description: error.message || "Feature not yet implemented."
+        description: error.message || "Something went wrong."
       });
     }
   });
@@ -131,8 +161,46 @@ export default function DriverManagement() {
     }
   });
 
+  // Edit form
+  const editForm = useForm<DriverFormData>({
+    resolver: zodResolver(editDriverFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      role: "driver"
+    }
+  });
+
+  // Update edit form when editingDriver changes
+  React.useEffect(() => {
+    if (editingDriver) {
+      editForm.reset({
+        name: editingDriver.name,
+        email: editingDriver.email,
+        password: "", // Don't pre-fill password
+        role: editingDriver.role
+      });
+    }
+  }, [editingDriver, editForm]);
+
   const onCreateSubmit = (data: DriverFormData) => {
     createDriverMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: DriverFormData) => {
+    if (!editingDriver) return;
+    
+    // Remove password from data if it's empty (don't update password)
+    const updateData: Partial<DriverFormData> = { ...data };
+    if (!updateData.password || updateData.password.trim() === "") {
+      updateData.password = undefined;
+    }
+    
+    updateDriverMutation.mutate({ 
+      id: editingDriver.id, 
+      data: updateData 
+    });
   };
 
   const handleDelete = (driver: UserType) => {
@@ -245,6 +313,87 @@ export default function DriverManagement() {
             </Form>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Driver Dialog */}
+        <Dialog open={!!editingDriver} onOpenChange={(open) => !open && setEditingDriver(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Driver</DialogTitle>
+              <DialogDescription>
+                Update driver information
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+                <FormField
+                  control={editForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. John Smith" {...field} data-testid="input-edit-name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="email" 
+                          placeholder="e.g. john@srlogistics.com" 
+                          {...field} 
+                          data-testid="input-edit-email" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password (leave empty to keep current)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="password" 
+                          placeholder="Leave empty to keep current password" 
+                          {...field} 
+                          data-testid="input-edit-password" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditingDriver(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateDriverMutation.isPending}
+                    data-testid="button-update-driver"
+                  >
+                    {updateDriverMutation.isPending ? "Updating..." : "Update Driver"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search */}
@@ -329,7 +478,6 @@ export default function DriverManagement() {
                         size="sm"
                         variant="outline"
                         onClick={() => setEditingDriver(driver)}
-                        disabled={true} // Disable until we implement edit functionality
                         data-testid={`button-edit-${driver.id}`}
                       >
                         <Edit className="w-3 h-3" />
