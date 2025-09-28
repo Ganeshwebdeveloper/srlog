@@ -21,6 +21,7 @@ import ThemeToggle from "./components/ThemeToggle";
 import { ThemeProvider } from "./components/ThemeProvider";
 import NotFound from "@/pages/not-found";
 import Analytics from "@/pages/Analytics";
+import DatabaseMonitor from "./components/DatabaseMonitor";
 
 type User = {
   id: string;
@@ -141,9 +142,12 @@ function Router() {
                   } />
                   <Route path="/analytics" component={() => <Analytics />} />
                   <Route path="/settings" component={() => 
-                    <div className="p-6">
-                      <h1 className="text-2xl font-bold mb-4">Settings</h1>
-                      <p className="text-muted-foreground">System settings and configuration will be implemented here.</p>
+                    <div className="p-6 space-y-6">
+                      <div>
+                        <h1 className="text-2xl font-bold mb-2">System Settings</h1>
+                        <p className="text-muted-foreground">Monitor database performance and system configuration.</p>
+                      </div>
+                      <DatabaseMonitor />
                     </div>
                   } />
                   <Route component={() => <AdminDashboard 
