@@ -288,6 +288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await storage.updateVehicle(updatedTrip.vehicleId, { status: 'available' });
             // Update driver status to available
             await storage.updateUser(updatedTrip.driverId, { status: 'available' });
+            // Delete all locations associated with the completed trip
+            await storage.deleteLocationsByTrip(updatedTrip.id);
           }
         } catch (statusUpdateError) {
           console.error("Error updating vehicle/driver status:", statusUpdateError);
@@ -624,6 +626,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   await storage.updateVehicle(updatedTrip.vehicleId, { status: 'available' });
                   // Update driver status to available
                   await storage.updateUser(updatedTrip.driverId, { status: 'available' });
+                  // Delete all locations associated with the completed trip
+                  await storage.deleteLocationsByTrip(updatedTrip.id);
                 }
               } catch (statusUpdateError) {
                 console.error("Error updating vehicle/driver status via WebSocket:", statusUpdateError);

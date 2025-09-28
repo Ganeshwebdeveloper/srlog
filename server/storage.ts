@@ -31,6 +31,7 @@ export interface IStorage {
   // Location operations
   getLocationsByTrip(tripId: string): Promise<Location[]>;
   createLocation(location: InsertLocation): Promise<Location>;
+  deleteLocationsByTrip(tripId: string): Promise<boolean>;
   // Database statistics operations
   getDatabaseStats(): Promise<{
     tables: Array<{
@@ -320,6 +321,21 @@ export class MemStorage implements IStorage {
     return location;
   }
 
+  async deleteLocationsByTrip(tripId: string): Promise<boolean> {
+    const locationsToDelete = Array.from(this.locations.entries())
+      .filter(([, location]) => location.tripId === tripId)
+      .map(([id]) => id);
+    
+    let deletedCount = 0;
+    for (const locationId of locationsToDelete) {
+      if (this.locations.delete(locationId)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
+  }
+
   async getDatabaseStats() {
     // Calculate mock statistics for in-memory storage
     const usersCount = this.users.size;
@@ -512,6 +528,16 @@ export class DatabaseStorage implements IStorage {
   async createLocation(insertLocation: InsertLocation): Promise<Location> {
     const result = await db.insert(locations).values([insertLocation]).returning();
     return result[0];
+  }
+
+  async deleteLocationsByTrip(tripId: string): Promise<boolean> {
+    try {
+      const result = await db.delete(locations).where(eq(locations.tripId, tripId)).returning();
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error deleting locations by trip:', error);
+      throw error;
+    }
   }
 
   async getDatabaseStats() {
