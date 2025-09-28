@@ -98,6 +98,28 @@ export default function TripManagement() {
 
   const drivers = users.filter(user => user.role === 'driver');
   const availableVehicles = vehicles.filter(vehicle => vehicle.status === 'available');
+  
+  // Filter drivers to show only those not assigned to active trips
+  const activeTrips = trips.filter(trip => trip.status === 'assigned' || trip.status === 'in_progress');
+  const busyDriverIds = new Set(activeTrips.map(trip => trip.driverId));
+  const availableDrivers = drivers.filter(driver => !busyDriverIds.has(driver.id));
+  
+  // For editing: include currently assigned driver/vehicle even if they're not "available"
+  const getSelectableDrivers = (currentDriverId?: string) => {
+    if (!currentDriverId) return availableDrivers;
+    const currentDriver = drivers.find(d => d.id === currentDriverId);
+    return currentDriver && !availableDrivers.find(d => d.id === currentDriverId) 
+      ? [...availableDrivers, currentDriver]
+      : availableDrivers;
+  };
+  
+  const getSelectableVehicles = (currentVehicleId?: string) => {
+    if (!currentVehicleId) return availableVehicles;
+    const currentVehicle = vehicles.find(v => v.id === currentVehicleId);
+    return currentVehicle && !availableVehicles.find(v => v.id === currentVehicleId)
+      ? [...availableVehicles, currentVehicle]
+      : availableVehicles;
+  };
 
   // Create trip mutation
   const createTripMutation = useMutation({
@@ -435,7 +457,7 @@ export default function TripManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {drivers.map((driver) => (
+                          {availableDrivers.map((driver) => (
                             <SelectItem key={driver.id} value={driver.id}>
                               {driver.name}
                             </SelectItem>
@@ -951,7 +973,7 @@ export default function TripManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {drivers.map((driver) => (
+                          {getSelectableDrivers(editingTrip?.driverId).map((driver) => (
                             <SelectItem key={driver.id} value={driver.id}>
                               {driver.name}
                             </SelectItem>
@@ -975,7 +997,7 @@ export default function TripManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {vehicles.map((vehicle) => (
+                          {getSelectableVehicles(editingTrip?.vehicleId).map((vehicle) => (
                             <SelectItem key={vehicle.id} value={vehicle.id}>
                               {vehicle.numberPlate} - {vehicle.type}
                             </SelectItem>
