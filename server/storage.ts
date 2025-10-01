@@ -145,6 +145,7 @@ export class MemStorage implements IStorage {
       startLocation: "Warehouse A",
       endLocation: "Customer Site",
       distance: "45.5",
+      currentSpeed: "0",
       estimatedDuration: "2.5",
       fuelConsumed: null,
       driverWage: "1500.00",
@@ -277,6 +278,7 @@ export class MemStorage implements IStorage {
       startLocation: insertTrip.startLocation || null,
       endLocation: insertTrip.endLocation || null,
       distance: insertTrip.distance || null,
+      currentSpeed: insertTrip.currentSpeed || "0",
       estimatedDuration: insertTrip.estimatedDuration || null,
       fuelConsumed: insertTrip.fuelConsumed || null,
       driverWage: insertTrip.driverWage || null,
@@ -806,38 +808,32 @@ async function initSampleData() {
   }
 }
 
-// Initialize storage with proper database connectivity check
-let storage: IStorage;
-
-async function initializeStorage(): Promise<IStorage> {
+export async function initializeStorage(): Promise<IStorage> {
   const dbConnection = await initializeDatabase();
   
   if (dbConnection) {
     console.log("Using database storage");
-    storage = new DatabaseStorage();
-    // Initialize sample data for database
+    const storage = new DatabaseStorage();
     try {
       await initSampleData();
     } catch (error) {
-      console.error("Failed to initialize sample data, falling back to in-memory storage:", error);
-      storage = new MemStorage();
+      console.error("Failed to initialize sample data:", error);
     }
+    return storage;
   } else {
     console.log("Using in-memory storage");
-    storage = new MemStorage();
+    return new MemStorage();
   }
-  
-  return storage;
 }
 
-// Initialize storage asynchronously but export synchronously for compatibility
-storage = new MemStorage(); // Default fallback
+let storage: IStorage = new MemStorage();
 
-initializeStorage().then((initializedStorage) => {
-  storage = initializedStorage;
-}).catch((error) => {
-  console.error("Storage initialization failed, using in-memory storage:", error);
-  storage = new MemStorage();
-});
+export function setStorage(newStorage: IStorage): void {
+  storage = newStorage;
+}
+
+export function getStorage(): IStorage {
+  return storage;
+}
 
 export { storage };

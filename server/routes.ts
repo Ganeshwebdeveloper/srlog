@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage.js";
+import { getStorage } from "./storage.js";
 import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema, insertCratesBalanceSchema } from "../shared/schema.js";
 import bcrypt from "bcrypt";
 
@@ -19,7 +19,7 @@ function registerHttpRoutes(app: Express): void {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
-      const user = await storage.getUserByEmail(email);
+      const user = await getStorage().getUserByEmail(email);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -67,7 +67,7 @@ function registerHttpRoutes(app: Express): void {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      const user = await storage.getUser(req.session.userId);
+      const user = await getStorage().getUser(req.session.userId);
       if (!user) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "User not found" });
@@ -86,7 +86,7 @@ function registerHttpRoutes(app: Express): void {
       const validatedData = insertUserSchema.parse(req.body);
       
       // Check if user already exists
-      const existingUser = await storage.getUserByEmail(validatedData.email);
+      const existingUser = await getStorage().getUserByEmail(validatedData.email);
       if (existingUser) {
         return res.status(409).json({ message: "User with this email already exists" });
       }
@@ -94,7 +94,7 @@ function registerHttpRoutes(app: Express): void {
       // Hash password
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       
-      const newUser = await storage.createUser({
+      const newUser = await getStorage().createUser({
         ...validatedData,
         password: hashedPassword
       });
@@ -121,7 +121,7 @@ function registerHttpRoutes(app: Express): void {
   // User routes
   app.get("/api/users", async (req, res) => {
     try {
-      const users = await storage.getUsers();
+      const users = await getStorage().getUsers();
       // Remove passwords from response
       const usersWithoutPasswords = users.map(({ password, ...user }: any) => user);
       res.json(usersWithoutPasswords);
@@ -133,7 +133,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.get("/api/users/:id", async (req, res) => {
     try {
-      const user = await storage.getUser(req.params.id);
+      const user = await getStorage().getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -156,7 +156,7 @@ function registerHttpRoutes(app: Express): void {
         updateData.password = await bcrypt.hash(validatedData.password, 10);
       }
       
-      const updatedUser = await storage.updateUser(req.params.id, updateData);
+      const updatedUser = await getStorage().updateUser(req.params.id, updateData);
       
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
@@ -175,7 +175,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.delete("/api/users/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteUser(req.params.id);
+      const deleted = await getStorage().deleteUser(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -189,7 +189,7 @@ function registerHttpRoutes(app: Express): void {
   // Vehicle routes
   app.get("/api/vehicles", async (req, res) => {
     try {
-      const vehicles = await storage.getVehicles();
+      const vehicles = await getStorage().getVehicles();
       res.json(vehicles);
     } catch (error: any) {
       console.error("Get vehicles error:", error);
@@ -199,7 +199,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.get("/api/vehicles/:id", async (req, res) => {
     try {
-      const vehicle = await storage.getVehicle(req.params.id);
+      const vehicle = await getStorage().getVehicle(req.params.id);
       if (!vehicle) {
         return res.status(404).json({ message: "Vehicle not found" });
       }
@@ -213,7 +213,7 @@ function registerHttpRoutes(app: Express): void {
   app.post("/api/vehicles", async (req, res) => {
     try {
       const validatedData = insertVehicleSchema.parse(req.body);
-      const newVehicle = await storage.createVehicle(validatedData);
+      const newVehicle = await getStorage().createVehicle(validatedData);
       res.status(201).json(newVehicle);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -227,7 +227,7 @@ function registerHttpRoutes(app: Express): void {
   app.put("/api/vehicles/:id", async (req, res) => {
     try {
       const validatedData = insertVehicleSchema.partial().parse(req.body);
-      const updatedVehicle = await storage.updateVehicle(req.params.id, validatedData);
+      const updatedVehicle = await getStorage().updateVehicle(req.params.id, validatedData);
       if (!updatedVehicle) {
         return res.status(404).json({ message: "Vehicle not found" });
       }
@@ -243,7 +243,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.delete("/api/vehicles/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteVehicle(req.params.id);
+      const deleted = await getStorage().deleteVehicle(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Vehicle not found" });
       }
@@ -261,9 +261,9 @@ function registerHttpRoutes(app: Express): void {
       let trips;
       
       if (driverId) {
-        trips = await storage.getTripsByDriver(driverId as string);
+        trips = await getStorage().getTripsByDriver(driverId as string);
       } else {
-        trips = await storage.getTrips();
+        trips = await getStorage().getTrips();
       }
       
       res.json(trips);
@@ -275,7 +275,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.get("/api/trips/:id", async (req, res) => {
     try {
-      const trip = await storage.getTrip(req.params.id);
+      const trip = await getStorage().getTrip(req.params.id);
       if (!trip) {
         return res.status(404).json({ message: "Trip not found" });
       }
@@ -289,7 +289,7 @@ function registerHttpRoutes(app: Express): void {
   app.post("/api/trips", async (req, res) => {
     try {
       const validatedData = insertTripSchema.parse(req.body);
-      const newTrip = await storage.createTrip(validatedData);
+      const newTrip = await getStorage().createTrip(validatedData);
       res.status(201).json(newTrip);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -303,7 +303,7 @@ function registerHttpRoutes(app: Express): void {
   app.put("/api/trips/:id", async (req, res) => {
     try {
       const validatedData = insertTripSchema.partial().parse(req.body);
-      const updatedTrip = await storage.updateTrip(req.params.id, validatedData);
+      const updatedTrip = await getStorage().updateTrip(req.params.id, validatedData);
       
       if (!updatedTrip) {
         return res.status(404).json({ message: "Trip not found" });
@@ -321,7 +321,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.delete("/api/trips/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteTrip(req.params.id);
+      const deleted = await getStorage().deleteTrip(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Trip not found" });
       }
@@ -345,7 +345,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.get("/api/trips/:tripId/locations", async (req, res) => {
     try {
-      const locations = await storage.getLocationsByTrip(req.params.tripId);
+      const locations = await getStorage().getLocationsByTrip(req.params.tripId);
       res.json(locations);
     } catch (error: any) {
       console.error("Get locations error:", error);
@@ -360,11 +360,11 @@ function registerHttpRoutes(app: Express): void {
         tripId: req.params.tripId
       };
       const validatedData = insertLocationSchema.parse(locationData);
-      const newLocation = await storage.createLocation(validatedData);
+      const newLocation = await getStorage().createLocation(validatedData);
       
       // Calculate distance and update trip stats
-      const previousLocations = await storage.getLocationsByTrip(req.params.tripId);
-      const trip = await storage.getTrip(req.params.tripId);
+      const previousLocations = await getStorage().getLocationsByTrip(req.params.tripId);
+      const trip = await getStorage().getTrip(req.params.tripId);
       
       if (trip && previousLocations.length > 0) {
         // Sort by timestamp and get the last location (before this one)
@@ -395,7 +395,7 @@ function registerHttpRoutes(app: Express): void {
           const newTotalDistance = currentDistance + distanceKm;
           const currentSpeed = newLocation.speed ? parseFloat(newLocation.speed.toString()) : null;
           
-          await storage.updateTrip(req.params.tripId, {
+          await getStorage().updateTrip(req.params.tripId, {
             distance: newTotalDistance.toFixed(2),
             ...(currentSpeed !== null && { currentSpeed: currentSpeed.toFixed(2) })
           });
@@ -430,9 +430,9 @@ function registerHttpRoutes(app: Express): void {
   // Analytics route
   app.get("/api/analytics", async (req, res) => {
     try {
-      const trips = await storage.getTrips();
-      const vehicles = await storage.getVehicles();
-      const drivers = await storage.getDrivers();
+      const trips = await getStorage().getTrips();
+      const vehicles = await getStorage().getVehicles();
+      const drivers = await getStorage().getDrivers();
 
       // Calculate analytics
       const totalTrips = trips.length;
@@ -522,7 +522,7 @@ function registerHttpRoutes(app: Express): void {
   // Database statistics route
   app.get("/api/database/stats", async (req, res) => {
     try {
-      const dbStats = await storage.getDatabaseStats();
+      const dbStats = await getStorage().getDatabaseStats();
       res.json(dbStats);
     } catch (error: any) {
       console.error("Database stats error:", error);
@@ -540,14 +540,14 @@ function registerHttpRoutes(app: Express): void {
       
       let cratesRecords;
       if (route) {
-        cratesRecords = await storage.getCratesBalancesByRoute(route as string);
+        cratesRecords = await getStorage().getCratesBalancesByRoute(route as string);
       } else if (startDate && endDate) {
-        cratesRecords = await storage.getCratesBalancesByDateRange(
+        cratesRecords = await getStorage().getCratesBalancesByDateRange(
           new Date(startDate as string),
           new Date(endDate as string)
         );
       } else {
-        cratesRecords = await storage.getCratesBalances();
+        cratesRecords = await getStorage().getCratesBalances();
       }
       
       res.json(cratesRecords);
@@ -559,7 +559,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.get("/api/crates-balance/:id", async (req, res) => {
     try {
-      const record = await storage.getCratesBalance(req.params.id);
+      const record = await getStorage().getCratesBalance(req.params.id);
       if (!record) {
         return res.status(404).json({ message: "Crates balance record not found" });
       }
@@ -573,7 +573,7 @@ function registerHttpRoutes(app: Express): void {
   app.post("/api/crates-balance", async (req, res) => {
     try {
       const validatedData = insertCratesBalanceSchema.parse(req.body);
-      const newRecord = await storage.createCratesBalance(validatedData);
+      const newRecord = await getStorage().createCratesBalance(validatedData);
       res.status(201).json(newRecord);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -587,7 +587,7 @@ function registerHttpRoutes(app: Express): void {
   app.put("/api/crates-balance/:id", async (req, res) => {
     try {
       const validatedData = insertCratesBalanceSchema.partial().parse(req.body);
-      const updatedRecord = await storage.updateCratesBalance(req.params.id, validatedData);
+      const updatedRecord = await getStorage().updateCratesBalance(req.params.id, validatedData);
       if (!updatedRecord) {
         return res.status(404).json({ message: "Crates balance record not found" });
       }
@@ -603,7 +603,7 @@ function registerHttpRoutes(app: Express): void {
 
   app.delete("/api/crates-balance/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteCratesBalance(req.params.id);
+      const deleted = await getStorage().deleteCratesBalance(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Crates balance record not found" });
       }
@@ -659,7 +659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { tripId, latitude, longitude, driverId } = data.payload;
           
           // Basic authentication - verify the driver is assigned to this trip
-          const trip = await storage.getTrip(tripId);
+          const trip = await getStorage().getTrip(tripId);
           if (!trip) {
             ws.send(JSON.stringify({
               type: 'error',
@@ -684,7 +684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               longitude: longitude.toString()
             });
             
-            const newLocation = await storage.createLocation(validatedLocation);
+            const newLocation = await getStorage().createLocation(validatedLocation);
             
             // Broadcast location update to all connected clients
             const locationUpdate = {
@@ -714,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { tripId, status, driverId } = data.payload;
           
           // Basic authentication - verify the driver is assigned to this trip
-          const trip = await storage.getTrip(tripId);
+          const trip = await getStorage().getTrip(tripId);
           if (!trip) {
             ws.send(JSON.stringify({
               type: 'error',
@@ -741,23 +741,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
               updateData.endTime = new Date();
             }
             
-            const updatedTrip = await storage.updateTrip(tripId, updateData);
+            const updatedTrip = await getStorage().updateTrip(tripId, updateData);
             
             if (updatedTrip) {
               // Automatically update vehicle and driver status based on trip status
               try {
                 if (status === 'in_progress') {
                   // Update vehicle status to in_use
-                  await storage.updateVehicle(updatedTrip.vehicleId, { status: 'in_use' });
+                  await getStorage().updateVehicle(updatedTrip.vehicleId, { status: 'in_use' });
                   // Update driver status to on_trip
-                  await storage.updateUser(updatedTrip.driverId, { status: 'on_trip' });
+                  await getStorage().updateUser(updatedTrip.driverId, { status: 'on_trip' });
                 } else if (status === 'completed' || status === 'cancelled') {
                   // Update vehicle status to available
-                  await storage.updateVehicle(updatedTrip.vehicleId, { status: 'available' });
+                  await getStorage().updateVehicle(updatedTrip.vehicleId, { status: 'available' });
                   // Update driver status to available
-                  await storage.updateUser(updatedTrip.driverId, { status: 'available' });
+                  await getStorage().updateUser(updatedTrip.driverId, { status: 'available' });
                   // Delete all locations associated with the completed trip
-                  await storage.deleteLocationsByTrip(updatedTrip.id);
+                  await getStorage().deleteLocationsByTrip(updatedTrip.id);
                 }
               } catch (statusUpdateError) {
                 console.error("Error updating vehicle/driver status via WebSocket:", statusUpdateError);
