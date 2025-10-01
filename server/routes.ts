@@ -29,6 +29,10 @@ function registerHttpRoutes(app: Express): void {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Set session data
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+
       // Return user without password
       const { password: _, ...userWithoutPassword } = user;
       res.json({
@@ -37,6 +41,42 @@ function registerHttpRoutes(app: Express): void {
       });
     } catch (error: any) {
       console.error("Login error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    try {
+      req.session.destroy((err) => {
+        if (err) {
+          console.error("Logout error:", err);
+          return res.status(500).json({ message: "Failed to logout" });
+        }
+        res.clearCookie('connect.sid');
+        res.json({ message: "Logged out successfully" });
+      });
+    } catch (error: any) {
+      console.error("Logout error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/auth/session", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword });
+    } catch (error: any) {
+      console.error("Session check error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -58,6 +98,10 @@ function registerHttpRoutes(app: Express): void {
         ...validatedData,
         password: hashedPassword
       });
+
+      // Set session data to automatically log in
+      req.session.userId = newUser.id;
+      req.session.userRole = newUser.role;
 
       // Return user without password
       const { password: _, ...userWithoutPassword } = newUser;

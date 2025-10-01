@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 // Components
 import LoginForm from "./components/LoginForm";
@@ -33,7 +34,38 @@ type User = {
 
 function Router() {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setUser(data.user);
+          }
+        } else if (response.status === 401) {
+          // 401 means no active session, which is normal
+          setUser(null);
+        } else {
+          console.error('Session check failed with status:', response.status);
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+  }, []);
 
   const handleLogin = (user: User) => {
     setUser(user);
@@ -46,9 +78,23 @@ function Router() {
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setLocation("/");
+  const handleLogout = async () => {
+    try {
+      const response = await apiRequest("POST", "/api/auth/logout");
+      if (response.ok) {
+        setUser(null);
+        setLocation("/");
+        toast({
+          title: "Logged out successfully",
+          description: "See you next time!"
+        });
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Still log out locally even if API call fails
+      setUser(null);
+      setLocation("/");
+    }
   };
 
   const handleNavigate = (path: string) => {
@@ -66,6 +112,18 @@ function Router() {
   const handleManageTrips = () => {
     setLocation("/trips");
   };
+
+  // Show loading spinner while checking session
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If not logged in, show login
   if (!user) {
