@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage.js";
-import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema } from "@shared/schema.js";
+import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema } from "../shared/schema.js";
 import bcrypt from "bcrypt";
 
 // WebSocket clients map to store active connections
