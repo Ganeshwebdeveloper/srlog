@@ -20,15 +20,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize API routes (serverless-compatible, no WebSocket)
-(async () => {
+// Initialize API routes synchronously to avoid race conditions
+let routesRegistered = false;
+const routesReadyPromise = (async () => {
   try {
     await registerApiRoutes(app);
+    routesRegistered = true;
     console.log("API routes registered successfully for serverless deployment");
   } catch (error) {
     console.error("Failed to register API routes:", error);
+    throw error;
   }
 })();
+
+// Middleware to ensure routes are ready before handling requests
+app.use(async (req, res, next) => {
+  if (!routesRegistered) {
+    await routesReadyPromise;
+  }
+  next();
+});
 
 // Error handling middleware (must come after routes)
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -4,15 +4,17 @@
   "outputDirectory": "dist/public",
   "installCommand": "npm install",
   "functions": {
-    "api/**/*.ts": {
+    "api/index.ts": {
       "runtime": "@vercel/node@3"
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/index"
-    },
+      "src": "/api/(.*)",
+      "dest": "/api/index.ts"
+    }
+  ],
+  "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.html"

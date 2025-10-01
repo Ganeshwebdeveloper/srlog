@@ -1,0 +1,50 @@
+# Dependencies
+node_modules
+
+# Development files
+.env.local
+.env.development
+*.local
+
+# Build artifacts (except dist/public which Vercel needs)
+dist/index.js
+dist/*.map
+
+# Server development files (keep routes.ts, storage.ts, db.ts as they're needed by api/)
+server/index.ts
+server/vite.ts
+migrations/
+
+# Testing
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Replit specific
+.replit
+replit.nix
+.config/
+
+# Backup files
+*.backup
+server/routes.ts.backup
+
+# Documentation
+design_guidelines.md
+replit.md
