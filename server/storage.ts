@@ -1,6 +1,6 @@
-import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, users, vehicles, trips, locations } from "@shared/schema";
+import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, users, vehicles, trips, locations } from "@shared/schema.js";
 import { randomUUID } from "crypto";
-import { db, initializeDatabase } from "./db";
+import { db, initializeDatabase } from "./db.js";
 import { eq, and, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
