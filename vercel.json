@@ -1,23 +1,26 @@
 {
   "version": 2,
-  "buildCommand": "vite build",
+  "buildCommand": "npm install && vite build",
   "outputDirectory": "dist/public",
   "installCommand": "npm install",
   "functions": {
     "api/index.ts": {
-      "runtime": "@vercel/node@3"
+      "runtime": "@vercel/node@3",
+      "maxDuration": 10
     }
   },
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "/api/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "regions": ["iad1"]
 }
