@@ -33,6 +33,7 @@ export default function DriverPortal({ driverName, driverId }: DriverPortalProps
   const [activeTrip, setActiveTrip] = useState<string | null>(null);
   const [locationSharing, setLocationSharing] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<GeolocationPosition | null>(null);
+  const [previousPosition, setPreviousPosition] = useState<GeolocationPosition | null>(null);
   const { toast } = useToast();
 
   // Location tracking interval
@@ -97,14 +98,22 @@ export default function DriverPortal({ driverName, driverId }: DriverPortalProps
 
   // Location update mutation
   const sendLocationMutation = useMutation({
-    mutationFn: async ({ tripId, latitude, longitude }: {
+    mutationFn: async ({ tripId, latitude, longitude, speed, altitude, heading, accuracy }: {
       tripId: string;
       latitude: number;
       longitude: number;
+      speed?: number;
+      altitude?: number;
+      heading?: number;
+      accuracy?: number;
     }) => {
       const response = await apiRequest('POST', `/api/trips/${tripId}/locations`, {
         latitude: latitude.toString(),
-        longitude: longitude.toString()
+        longitude: longitude.toString(),
+        ...(speed !== undefined && speed !== null && { speed: speed.toString() }),
+        ...(altitude !== undefined && altitude !== null && { altitude: altitude.toString() }),
+        ...(heading !== undefined && heading !== null && { heading: heading.toString() }),
+        ...(accuracy !== undefined && accuracy !== null && { accuracy: accuracy.toString() })
       });
       return response.json();
     },
@@ -124,15 +133,22 @@ export default function DriverPortal({ driverName, driverId }: DriverPortalProps
       return;
     }
 
-    // Get initial position
+    // Get initial position with high accuracy
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setCurrentPosition(position);
-        // Send initial location
+        setPreviousPosition(null); // Reset previous position for new trip
+        
+        // Send initial location with all available data
+        const speedKmh = position.coords.speed !== null ? position.coords.speed * 3.6 : undefined; // Convert m/s to km/h
         sendLocationMutation.mutate({
           tripId,
           latitude: position.coords.latitude,
-          longitude: position.coords.longitude
+          longitude: position.coords.longitude,
+          speed: speedKmh,
+          altitude: position.coords.altitude ?? undefined,
+          heading: position.coords.heading ?? undefined,
+          accuracy: position.coords.accuracy ?? undefined
         });
       },
       (error) => {
@@ -142,6 +158,11 @@ export default function DriverPortal({ driverName, driverId }: DriverPortalProps
           description: "Please allow location access to track your trip",
           variant: "destructive"
         });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
       }
     );
 
@@ -149,15 +170,29 @@ export default function DriverPortal({ driverName, driverId }: DriverPortalProps
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          setPreviousPosition(currentPosition);
           setCurrentPosition(position);
+          
+          // Convert speed from m/s to km/h if available
+          const speedKmh = position.coords.speed !== null ? position.coords.speed * 3.6 : undefined;
+          
           sendLocationMutation.mutate({
             tripId,
             latitude: position.coords.latitude,
-            longitude: position.coords.longitude
+            longitude: position.coords.longitude,
+            speed: speedKmh,
+            altitude: position.coords.altitude ?? undefined,
+            heading: position.coords.heading ?? undefined,
+            accuracy: position.coords.accuracy ?? undefined
           });
         },
         (error) => {
           console.error('Geolocation error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     }, 30000); // Update every 30 seconds
@@ -170,6 +205,7 @@ export default function DriverPortal({ driverName, driverId }: DriverPortalProps
       locationIntervalRef.current = null;
     }
     setCurrentPosition(null);
+    setPreviousPosition(null);
   };
 
   const getStatusColor = (status: string) => {

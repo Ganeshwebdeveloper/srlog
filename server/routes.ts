@@ -361,6 +361,62 @@ function registerHttpRoutes(app: Express): void {
       };
       const validatedData = insertLocationSchema.parse(locationData);
       const newLocation = await storage.createLocation(validatedData);
+      
+      // Calculate distance and update trip stats
+      const previousLocations = await storage.getLocationsByTrip(req.params.tripId);
+      const trip = await storage.getTrip(req.params.tripId);
+      
+      if (trip && previousLocations.length > 0) {
+        // Sort by timestamp and get the last location (before this one)
+        const sortedLocations = previousLocations
+          .filter(loc => loc.id !== newLocation.id)
+          .sort((a, b) => new Date(b.timestamp || '').getTime() - new Date(a.timestamp || '').getTime());
+        
+        if (sortedLocations.length > 0) {
+          const lastLocation = sortedLocations[0];
+          
+          // Calculate distance using Haversine formula
+          const lat1 = parseFloat(lastLocation.latitude.toString());
+          const lon1 = parseFloat(lastLocation.longitude.toString());
+          const lat2 = parseFloat(newLocation.latitude.toString());
+          const lon2 = parseFloat(newLocation.longitude.toString());
+          
+          const R = 6371; // Earth's radius in kilometers
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const distanceKm = R * c;
+          
+          // Update trip's cumulative distance and current speed
+          const currentDistance = parseFloat(trip.distance?.toString() || '0');
+          const newTotalDistance = currentDistance + distanceKm;
+          const currentSpeed = newLocation.speed ? parseFloat(newLocation.speed.toString()) : null;
+          
+          await storage.updateTrip(req.params.tripId, {
+            distance: newTotalDistance.toFixed(2),
+            ...(currentSpeed !== null && { currentSpeed: currentSpeed.toFixed(2) })
+          });
+        }
+      }
+      
+      // Broadcast location update to all WebSocket clients
+      const locationUpdate = {
+        type: 'location_update',
+        data: {
+          ...newLocation,
+          tripId: req.params.tripId
+        }
+      };
+      
+      wsClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(locationUpdate));
+        }
+      });
+      
       res.status(201).json(newLocation);
     } catch (error: any) {
       if (error.name === 'ZodError') {

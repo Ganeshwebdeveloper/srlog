@@ -37,7 +37,8 @@ export const trips = pgTable("trips", {
   status: text("status").notNull().$type<"assigned" | "in_progress" | "completed" | "cancelled">(),
   startLocation: text("start_location"),
   endLocation: text("end_location"),
-  distance: decimal("distance", { precision: 8, scale: 2 }), // km
+  distance: decimal("distance", { precision: 8, scale: 2 }), // km - cumulative distance
+  currentSpeed: decimal("current_speed", { precision: 6, scale: 2 }), // km/h - current speed
   estimatedDuration: decimal("estimated_duration", { precision: 6, scale: 2 }), // hours
   fuelConsumed: decimal("fuel_consumed", { precision: 8, scale: 2 }), // liters
   driverWage: decimal("driver_wage", { precision: 10, scale: 2 }), // rupees
