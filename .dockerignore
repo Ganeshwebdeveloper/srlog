@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.vscode
+.env
+.env.local
+.env.*.local
+dist
+*.log
+attached_assets
