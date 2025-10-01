@@ -70,6 +70,18 @@ export const dbStats = pgTable("db_stats", {
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
+// Crates balance sheet table for tracking daily crate movements by route
+export const cratesBalance = pgTable("crates_balance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  route: text("route").notNull(),
+  driverId: varchar("driver_id").notNull().references(() => users.id),
+  vehicleId: varchar("vehicle_id").notNull().references(() => vehicles.id),
+  date: timestamp("date").notNull(),
+  cratesCount: decimal("crates_count", { precision: 10, scale: 0 }).notNull(), // Positive for added, negative for subtracted
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -98,6 +110,11 @@ export const insertDbStatsSchema = createInsertSchema(dbStats).omit({
   lastUpdated: true,
 });
 
+export const insertCratesBalanceSchema = createInsertSchema(cratesBalance).omit({
+  id: true,
+  createdAt: true,
+});
+
 // TypeScript types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -109,3 +126,5 @@ export type InsertLocation = z.infer<typeof insertLocationSchema>;
 export type Location = typeof locations.$inferSelect;
 export type InsertDbStats = z.infer<typeof insertDbStatsSchema>;
 export type DbStats = typeof dbStats.$inferSelect;
+export type InsertCratesBalance = z.infer<typeof insertCratesBalanceSchema>;
+export type CratesBalance = typeof cratesBalance.$inferSelect;

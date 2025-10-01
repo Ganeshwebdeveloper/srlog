@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage.js";
-import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema } from "../shared/schema.js";
+import { insertUserSchema, insertVehicleSchema, insertTripSchema, insertLocationSchema, insertCratesBalanceSchema } from "../shared/schema.js";
 import bcrypt from "bcrypt";
 
 // WebSocket clients map to store active connections
@@ -403,12 +403,14 @@ function registerHttpRoutes(app: Express): void {
       }, 0);
 
       // Group trips by status for pie chart
-      const tripsByStatus = {
-        assigned: trips.filter(trip => trip.status === 'assigned').length,
-        in_progress: trips.filter(trip => trip.status === 'in_progress').length,
-        completed: trips.filter(trip => trip.status === 'completed').length,
-        cancelled: trips.filter(trip => trip.status === 'cancelled').length,
-      };
+      const tripsByStatusArray = [
+        { status: 'assigned', count: trips.filter(trip => trip.status === 'assigned').length, fill: '#3b82f6' },
+        { status: 'in_progress', count: trips.filter(trip => trip.status === 'in_progress').length, fill: '#f59e0b' },
+        { status: 'completed', count: trips.filter(trip => trip.status === 'completed').length, fill: '#10b981' },
+        { status: 'cancelled', count: trips.filter(trip => trip.status === 'cancelled').length, fill: '#ef4444' },
+      ];
+      
+      const tripsByStatus = tripsByStatusArray;
 
       // Get trips by day for the last 7 days
       const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -419,6 +421,7 @@ function registerHttpRoutes(app: Express): void {
 
       const tripsByDay = last7Days.map(day => ({
         date: day,
+        day: day,
         trips: trips.filter(trip => {
           const tripDate = new Date(trip.createdAt || '').toISOString().split('T')[0];
           return tripDate === day;
@@ -428,7 +431,8 @@ function registerHttpRoutes(app: Express): void {
       // Driver performance data (trips per driver)
       const driverPerformance = drivers.map(driver => ({
         name: driver.name,
-        trips: trips.filter(trip => trip.driverId === driver.id).length
+        trips: trips.filter(trip => trip.driverId === driver.id).length,
+        avgRating: 4.5 // Placeholder for future rating system
       }));
 
       // Recent trips (last 10)
@@ -440,6 +444,7 @@ function registerHttpRoutes(app: Express): void {
         totalTrips,
         completedTrips,
         activeTrips,
+        totalDrivers: drivers.length,
         activeDrivers,
         totalVehicles,
         activeVehicles,
@@ -469,6 +474,87 @@ function registerHttpRoutes(app: Express): void {
         message: "Failed to retrieve database statistics",
         error: error.message 
       });
+    }
+  });
+
+  // Crates balance routes
+  app.get("/api/crates-balance", async (req, res) => {
+    try {
+      const { route, startDate, endDate } = req.query;
+      
+      let cratesRecords;
+      if (route) {
+        cratesRecords = await storage.getCratesBalancesByRoute(route as string);
+      } else if (startDate && endDate) {
+        cratesRecords = await storage.getCratesBalancesByDateRange(
+          new Date(startDate as string),
+          new Date(endDate as string)
+        );
+      } else {
+        cratesRecords = await storage.getCratesBalances();
+      }
+      
+      res.json(cratesRecords);
+    } catch (error: any) {
+      console.error("Get crates balance error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/crates-balance/:id", async (req, res) => {
+    try {
+      const record = await storage.getCratesBalance(req.params.id);
+      if (!record) {
+        return res.status(404).json({ message: "Crates balance record not found" });
+      }
+      res.json(record);
+    } catch (error: any) {
+      console.error("Get crates balance error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/crates-balance", async (req, res) => {
+    try {
+      const validatedData = insertCratesBalanceSchema.parse(req.body);
+      const newRecord = await storage.createCratesBalance(validatedData);
+      res.status(201).json(newRecord);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input data", errors: error.errors });
+      }
+      console.error("Create crates balance error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/crates-balance/:id", async (req, res) => {
+    try {
+      const validatedData = insertCratesBalanceSchema.partial().parse(req.body);
+      const updatedRecord = await storage.updateCratesBalance(req.params.id, validatedData);
+      if (!updatedRecord) {
+        return res.status(404).json({ message: "Crates balance record not found" });
+      }
+      res.json(updatedRecord);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input data", errors: error.errors });
+      }
+      console.error("Update crates balance error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/crates-balance/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteCratesBalance(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Crates balance record not found" });
+      }
+      res.json({ message: "Crates balance record deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete crates balance error:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 }

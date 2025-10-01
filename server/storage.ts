@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, users, vehicles, trips, locations } from "../shared/schema.js";
+import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Trip, type InsertTrip, type Location, type InsertLocation, type CratesBalance, type InsertCratesBalance, users, vehicles, trips, locations, cratesBalance } from "../shared/schema.js";
 import { randomUUID } from "crypto";
 import { db, initializeDatabase } from "./db.js";
 import { eq, and, sql } from "drizzle-orm";
@@ -32,6 +32,14 @@ export interface IStorage {
   getLocationsByTrip(tripId: string): Promise<Location[]>;
   createLocation(location: InsertLocation): Promise<Location>;
   deleteLocationsByTrip(tripId: string): Promise<boolean>;
+  // Crates balance operations
+  getCratesBalances(): Promise<CratesBalance[]>;
+  getCratesBalancesByRoute(route: string): Promise<CratesBalance[]>;
+  getCratesBalancesByDateRange(startDate: Date, endDate: Date): Promise<CratesBalance[]>;
+  getCratesBalance(id: string): Promise<CratesBalance | undefined>;
+  createCratesBalance(crates: InsertCratesBalance): Promise<CratesBalance>;
+  updateCratesBalance(id: string, updates: Partial<InsertCratesBalance>): Promise<CratesBalance | undefined>;
+  deleteCratesBalance(id: string): Promise<boolean>;
   // Database statistics operations
   getDatabaseStats(): Promise<{
     tables: Array<{
@@ -336,6 +344,35 @@ export class MemStorage implements IStorage {
     return deletedCount > 0;
   }
 
+  // Crates balance operations (stubs for in-memory storage)
+  async getCratesBalances(): Promise<CratesBalance[]> {
+    return [];
+  }
+
+  async getCratesBalancesByRoute(route: string): Promise<CratesBalance[]> {
+    return [];
+  }
+
+  async getCratesBalancesByDateRange(startDate: Date, endDate: Date): Promise<CratesBalance[]> {
+    return [];
+  }
+
+  async getCratesBalance(id: string): Promise<CratesBalance | undefined> {
+    return undefined;
+  }
+
+  async createCratesBalance(crates: InsertCratesBalance): Promise<CratesBalance> {
+    throw new Error("Crates balance not supported in memory storage");
+  }
+
+  async updateCratesBalance(id: string, updates: Partial<InsertCratesBalance>): Promise<CratesBalance | undefined> {
+    return undefined;
+  }
+
+  async deleteCratesBalance(id: string): Promise<boolean> {
+    return false;
+  }
+
   async getDatabaseStats() {
     // Calculate mock statistics for in-memory storage
     const usersCount = this.users.size;
@@ -536,6 +573,51 @@ export class DatabaseStorage implements IStorage {
       return result.length > 0;
     } catch (error) {
       console.error('Error deleting locations by trip:', error);
+      throw error;
+    }
+  }
+
+  // Crates balance operations
+  async getCratesBalances(): Promise<CratesBalance[]> {
+    return await db.select().from(cratesBalance);
+  }
+
+  async getCratesBalancesByRoute(route: string): Promise<CratesBalance[]> {
+    return await db.select().from(cratesBalance).where(eq(cratesBalance.route, route));
+  }
+
+  async getCratesBalancesByDateRange(startDate: Date, endDate: Date): Promise<CratesBalance[]> {
+    return await db.select().from(cratesBalance)
+      .where(and(
+        sql`${cratesBalance.date} >= ${startDate}`,
+        sql`${cratesBalance.date} <= ${endDate}`
+      ));
+  }
+
+  async getCratesBalance(id: string): Promise<CratesBalance | undefined> {
+    const result = await db.select().from(cratesBalance).where(eq(cratesBalance.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createCratesBalance(insertCrates: InsertCratesBalance): Promise<CratesBalance> {
+    const result = await db.insert(cratesBalance).values([insertCrates]).returning();
+    return result[0];
+  }
+
+  async updateCratesBalance(id: string, updates: Partial<InsertCratesBalance>): Promise<CratesBalance | undefined> {
+    const result = await db.update(cratesBalance)
+      .set(updates as any)
+      .where(eq(cratesBalance.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteCratesBalance(id: string): Promise<boolean> {
+    try {
+      const result = await db.delete(cratesBalance).where(eq(cratesBalance.id, id)).returning();
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error deleting crates balance:', error);
       throw error;
     }
   }

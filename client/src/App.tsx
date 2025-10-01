@@ -23,6 +23,7 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import NotFound from "@/pages/not-found";
 import Analytics from "@/pages/Analytics";
 import DatabaseMonitor from "./components/DatabaseMonitor";
+import CratesBalanceSheet from "@/pages/CratesBalanceSheet";
 
 type User = {
   id: string;
@@ -199,6 +200,7 @@ function Router() {
                     </div>
                   } />
                   <Route path="/analytics" component={() => <Analytics />} />
+                  <Route path="/crates-balance" component={() => <CratesBalanceSheet />} />
                   <Route path="/settings" component={() => 
                     <div className="p-6 space-y-6">
                       <div>

@@ -21,7 +21,8 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  Truck
+  Truck,
+  Package
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -70,6 +71,11 @@ export default function AppSidebar({
       title: "Analytics",
       url: "/analytics",
       icon: BarChart3,
+    },
+    {
+      title: "Crates Balance",
+      url: "/crates-balance",
+      icon: Package,
     },
   ];
 
