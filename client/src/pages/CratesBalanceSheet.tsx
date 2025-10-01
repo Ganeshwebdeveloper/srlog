@@ -41,7 +41,12 @@ export default function CratesBalanceSheet() {
   const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
 
   const { data: cratesRecords = [], isLoading } = useQuery<CratesBalance[]>({
-    queryKey: ['/api/crates-balance', { startDate: startDate.toISOString(), endDate: endDate.toISOString() }],
+    queryKey: ['/api/crates-balance', startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const response = await fetch(`/api/crates-balance?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
+      if (!response.ok) throw new Error('Failed to fetch crates records');
+      return response.json();
+    },
     enabled: !!selectedMonth,
   });
 
@@ -95,10 +100,24 @@ export default function CratesBalanceSheet() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.route || !formData.driverId || !formData.vehicleId || !formData.cratesCount) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all required fields"
+      });
+      return;
+    }
+    
     createMutation.mutate({
-      ...formData,
+      route: formData.route,
+      driverId: formData.driverId,
+      vehicleId: formData.vehicleId,
       date: new Date(formData.date).toISOString(),
-      cratesCount: formData.cratesCount
+      cratesCount: formData.cratesCount.toString(), // Ensure it's a string for decimal field
+      notes: formData.notes || undefined
     });
   };
 
